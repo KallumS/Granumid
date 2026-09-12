@@ -87,6 +87,23 @@ several of them are not obvious.
 - `@gfx` runs on a different thread from audio. UI writes to shared memory
   (markers, sliders) are racy by design; keep them small and idempotent.
 
+## ReaScript API (verified against the v7.79 reference)
+
+Every `reaper.*` call in `Scripts/granumid_import.lua` has been checked against
+the official signatures — return counts and argument order are correct as
+written. The ones worth remembering because they are easy to get wrong:
+
+- `CountProjectMarkers(proj)` returns **three** values; the first is the combined
+  marker+region count that `EnumProjectMarkers(idx)` indexes over. Its `retval`
+  is an integer (0 = no more), while its `isrgn` is a Lua boolean.
+- `TimeMap_GetTimeSigAtTime(proj, time)` returns `num, denom, tempo` — tempo
+  last, not first.
+- `MIDI_CountEvts` returns `retval, notecnt, cccnt, textsyxcnt`; the note count is
+  the *second* value.
+- `GetTakeMarker(take, idx)` returns the position in **take source seconds**, so
+  converting to an item position needs `(src - D_STARTOFFS) / D_PLAYRATE`.
+- `GetUserFileNameForRead(fn, title, defext)` — filename buffer first, title second.
+
 ## Architecture invariants
 
 - **One absolute sample clock.** `gm_now` advances by `samplesblock` each block;
@@ -150,8 +167,22 @@ Discussed and chosen over rewriting as VST3/CLAP:
    self-contained and don't depend on a file in `Data/granumid/` on whatever
    machine opens them.
 2. **Have `granumid_import.lua` select the phrase it just wrote** in the focused
-   Granumid instance. The file slider is an ordinary indexed parameter, so the
-   script can set it once it knows the file's alphabetical position in the folder.
+   Granumid instance. The API reference confirms this is possible and shows a
+   better route than the one first sketched:
+
+   - `TrackFX_SetNamedConfigParm`'s `FILE` / `FILEx` values are **RS5k only** —
+     there is no named-config route to a JSFX file slider. Don't go looking.
+   - The file slider is parameter index 0, so `TrackFX_SetParam(tr, fx, 0, n)`
+     sets it and `TrackFX_GetParam` gives the min/max (i.e. how many phrases
+     REAPER found).
+   - Don't guess `n` from alphabetical order. `TrackFX_GetFormattedParamValue(tr,
+     fx, 0)` renders a file slider as its **filename**, so step the parameter and
+     match the name that was just written. That is ordering-agnostic and doubles
+     as a live check of note 2 under *Unverified in REAPER*.
+   - Find the instance with `GetTouchedOrFocusedFX(1)` (`GetFocusedFX` is
+     deprecated), then confirm with `TrackFX_GetFXName` before touching
+     anything; fall back to scanning `CountTracks`/`TrackFX_GetCount` when no
+     Granumid window is focused.
 
 ## Conventions
 
