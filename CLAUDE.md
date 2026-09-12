@@ -160,20 +160,34 @@ slider from 2 upwards has exactly one control, that control defaults match the
 declarations, that nothing falls outside the window and that no two controls
 share a cell — so a mismatch fails the suite rather than shipping.
 
-## Unverified in REAPER
+## State as of the last REAPER session (parked)
 
-The plug-in has never been loaded in the DAW. Four things the harness cannot
-check, in rough order of likelihood:
+Confirmed working in REAPER 7 on macOS:
 
-1. `import <name>.jsfx-inc` resolving from the plug-in's own folder (all four
-   files must sit together in `Effects/Granumid/`)
-2. The file-list enumeration in `gm_scan_files()`, which steps `slider1` and
-   reads back `strcpy_fromslider` to discover the available phrases
-3. Exact text-mode `file_avail()` behaviour at EOF (mitigated as described above)
-4. `sliderchange()` / `slider_automate()` masks for sliders above 32, where the
+- it compiles, and `import <name>.jsfx-inc` resolves from the plug-in's own
+  folder with all four files side by side in `Effects/Granumid/`
+- all 55 parameters parse with the right defaults and enum labels
+- the file slider finds `Data/granumid/default.txt`
+- the `@gfx` panel renders once the sliders are hidden
+- idle cost is negligible (0.03% CPU)
+
+Still unverified, in rough order of likelihood:
+
+1. The file-list enumeration in `gm_scan_files()`, which steps `slider1` and
+   reads back `strcpy_fromslider` to discover the available phrases. `slider1`
+   stays visible until this is confirmed, so there is always a way to pick a
+   phrase.
+2. Exact text-mode `file_avail()` behaviour at EOF (mitigated as described above)
+3. `sliderchange()` / `slider_automate()` masks for sliders above 32, where the
    bitmask exceeds 32 bits
+4. Whether the engine actually sounds right — it was parked before playing
+   through it in anger. The harness proves the note output is what the design
+   intends; it says nothing about whether the design is musical.
 
-If someone reports a bug, check these before suspecting the engine.
+**Parked with known rough edges.** The owner's verdict after first load was that
+it "needs a lot of work"; the specifics were not captured. Treat the UI polish,
+default parameter values and the feel of each mode as open questions rather than
+settled, and check these notes before suspecting the engine of a bug.
 
 **Reading a failure:** REAPER prints the first compile error at the top of the FX
 window and then falls back to the generated slider UI, because the header parses
