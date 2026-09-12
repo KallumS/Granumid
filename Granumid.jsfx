@@ -1,0 +1,421 @@
+desc:Granumid - MIDI sampler (classic / one-shot / slice / granular)
+tags: MIDI sampler slicer granular instrument
+//
+// Granumid turns a MIDI phrase into a playable instrument, the way Simpler or
+// Bitwig's Sampler turn an audio file into one - except every stage of the
+// signal path works on notes instead of samples.
+//
+//   Classic    polyphonic; each held key loops the phrase
+//   One-Shot   monophonic; one trigger plays the phrase start to finish
+//   Slice      chops the phrase and maps the pieces across the keyboard
+//   Granular   up to 256 independent grains with their own motion and direction
+//
+// Source phrases are imported with Scripts/granumid_import.lua and live in
+//   <REAPER resource path>/Data/granumid/*.txt
+// See README.md and docs/FORMAT.md.
+//
+// Copyright (C) 2026  Granumid contributors.
+// Licensed under the GNU General Public License v3 (see LICENSE).
+
+in_pin:none
+out_pin:none
+options:no_meter gfx_hz=30
+
+// --- source -----------------------------------------------------------------
+slider1:/granumid:default.txt:Source File
+
+// --- play -------------------------------------------------------------------
+slider2:0<0,3,1{Classic,One-Shot,Slice,Granular}>Mode
+slider3:60<0,127,1>Root Key
+slider4:0<-48,48,1>Transpose
+slider5:1<0,2,1{Off,Transpose,Rate (pitch)}>Key Tracking
+slider6:8<1,16,1>Polyphony
+slider7:2<0,2,1{Source,Played Key,Blend}>Velocity Source
+slider8:100<0,200,1>Velocity Scale
+slider9:100<1,400,1>Note Length
+slider10:0<0,16,1>Output Channel
+slider11:0<0,60,0.1>Humanize Timing
+slider12:0<0,48,1>Humanize Velocity
+slider13:0<0,1,1{Off,On}>MIDI Thru
+
+// --- warp -------------------------------------------------------------------
+slider14:1<0,2,1{Free (source tempo),Sync (project),Fixed Length}>Warp Mode
+slider15:1<0.0625,8,0.0001>Speed
+slider16:4<0.25,64,0.25>Fixed Length
+slider17:0<0,1,1{Retrigger,Transport Lock}>Start Mode
+slider18:0<0,5,1{Off,1/16,1/8,1/4,1/2,1 Bar}>Trigger Quantize
+slider19:0<0,99,0.01>Region Start
+slider20:100<1,100,0.01>Region Length
+slider21:0<0,1,1{Off,On}>Reverse
+
+// --- loop -------------------------------------------------------------------
+slider22:1<0,1,1{Off,On}>Loop
+slider23:0<0,2,1{Forward,Reverse,Ping-Pong}>Loop Mode
+slider24:0<0,99,0.01>Loop Start
+slider25:100<1,100,0.01>Loop Length
+slider26:0<0,64,1>Loop Count
+
+// --- amplitude envelope -----------------------------------------------------
+slider27:0<0,5000,1>Attack
+slider28:500<0,10000,1>Decay
+slider29:100<0,100,0.1>Sustain
+slider30:80<0,10000,1>Release
+slider31:100<0,100,0.1>Env Amount
+slider32:0<-1,1,0.01>Env Curve
+
+// --- note filter ------------------------------------------------------------
+slider33:0<0,4,1{Off,Lowpass,Highpass,Bandpass,Notch}>Filter Mode
+slider34:64<0,127,0.1>Filter Cutoff
+slider35:24<0.5,60,0.1>Filter Width
+slider36:12<0,48,0.1>Filter Slope
+slider37:0<0,100,0.1>Filter Resonance
+slider38:0<-100,100,1>Filter Key Track
+slider39:5<0,100,1>Filter Threshold
+
+// --- slice ------------------------------------------------------------------
+slider40:0<0,4,1{Divisions,Beats,Onsets,Pitch Changes,Manual Markers}>Slice Method
+slider41:16<1,128,1>Slice Divisions
+slider42:1<0,6,1{1/32,1/16,1/8,1/4,1/2,1 Bar,2 Bars}>Slice Grid
+slider43:50<0,100,1>Onset Sensitivity
+slider44:36<0,127,1>Slice Map Root
+slider45:0<0,1,1{Until Slice End,While Held}>Slice Gate
+
+// --- granular ---------------------------------------------------------------
+slider46:16<1,256,1>Grain Count
+slider47:0.25<0.01,8,0.001>Grain Size
+slider48:0<0,100,0.1>Grain Spray
+slider49:0<-4,4,0.001>Grain Motion
+slider50:0<0,3,1{Forward,Reverse,Alternate,Random}>Grain Direction
+slider51:100<1,100,1>Grain Density
+slider52:0<0,24,1>Grain Pitch Spread
+slider53:0<0,2,1{Even,Random,Cloud}>Grain Spread
+slider54:1<1,999,1>Grain Seed
+
+// --- mono behaviour ---------------------------------------------------------
+slider55:0<0,2,1{Restart,Ignore While Playing,Legato}>One-Shot Retrigger
+slider56:0<0,1,1{Off,On}>Mono Choke
+
+import granumid_core.jsfx-inc
+import granumid_engine.jsfx-inc
+import granumid_ui.jsfx-inc
+
+@init
+
+ext_noinit = 1;
+
+// ---------------------------------------------------------------------------
+// Parameter fan-out.  Called every block so that changes made from @gfx take
+// effect even if the host does not re-run @slider.
+// ---------------------------------------------------------------------------
+function gm_apply_params() local(span, h)
+(
+  p_mode      = slider2 | 0;
+  p_root      = slider3 | 0;
+  p_transp    = slider4 | 0;
+  p_keytrack  = slider5 | 0;
+  p_poly      = max(slider6 | 0, 1);
+  p_velmode   = slider7 | 0;
+  p_velamt    = slider8;
+  p_gate      = slider9;
+  p_outchan   = slider10 | 0;
+  p_humt      = slider11;
+  p_humv      = slider12;
+  p_thru      = slider13 | 0;
+
+  p_warp      = slider14 | 0;
+  p_speed     = max(slider15, 0.0001);
+  p_fixlen    = max(slider16, 0.01);
+  p_startmode = slider17 | 0;
+  p_tquant    = slider18 | 0;
+  p_srcstart  = slider19;
+  p_srclen    = slider20;
+  p_reverse   = slider21 | 0;
+
+  p_loopon    = slider22 | 0;
+  p_loopmode  = slider23 | 0;
+  p_loopstart = slider24;
+  p_looplen   = slider25;
+  p_loopcnt   = slider26 | 0;
+
+  p_atk       = slider27;
+  p_dec       = slider28;
+  p_sus       = slider29;
+  p_rel       = slider30;
+  p_envamt    = slider31;
+  p_envcurve  = slider32;
+
+  p_fmode     = slider33 | 0;
+  p_fcut      = slider34;
+  p_fwidth    = slider35;
+  p_fslope    = slider36;
+  p_freso     = slider37;
+  p_fkey      = slider38;
+  p_fthresh   = slider39;
+
+  p_slmethod  = slider40 | 0;
+  p_sldiv     = slider41 | 0;
+  p_slgrid    = slider42 | 0;
+  p_slsens    = slider43;
+  p_slroot    = slider44 | 0;
+  p_slgate    = slider45 | 0;
+
+  p_gcount    = slider46 | 0;
+  p_gsize     = slider47;
+  p_gspray    = slider48;
+  p_gmotion   = slider49;
+  p_gdir      = slider50 | 0;
+  p_gdens     = slider51;
+  p_gpitch    = slider52 | 0;
+  p_gshape    = slider53 | 0;
+  p_gseed     = slider54 | 0;
+
+  p_osretrig  = slider55 | 0;
+  p_choke     = slider56 | 0;
+
+  // playback region and loop bounds, in source beats
+  gm_reg_a = gm_src_len * p_srcstart * 0.01;
+  gm_reg_b = min(gm_reg_a + gm_src_len * p_srclen * 0.01, gm_src_len);
+  gm_reg_b - gm_reg_a < 1.0e-4 ? gm_reg_b = min(gm_reg_a + 1.0e-4, gm_src_len);
+  span = max(gm_reg_b - gm_reg_a, 1.0e-4);
+
+  gm_loop_a = gm_reg_a + span * p_loopstart * 0.01;
+  gm_loop_b = min(gm_loop_a + span * p_looplen * 0.01, gm_reg_b);
+  gm_loop_a = min(gm_loop_a, gm_loop_b - 1.0e-4);
+  gm_loop_a < gm_reg_a ? gm_loop_a = gm_reg_a;
+
+  gm_ratio     = gm_warp_ratio();      // cached: `tempo` is not valid in @gfx
+  gm_base_rate = gm_bps * gm_ratio;
+
+  // rebuild the slice map only when something it depends on actually moved
+  h = p_slmethod * 1.0e7 + p_sldiv * 1.0e4 + p_slgrid * 1.0e3 + p_slsens * 3 +
+      gm_reg_a * 7.13 + gm_reg_b * 13.7 + gm_nmark * 31 + gm_src_n * 0.077 + gm_src_len * 0.31;
+  (h != gm_slice_hash || gm_slice_dirty) ? (
+    gm_slice_hash  = h;
+    gm_slice_dirty = 0;
+    gm_build_slices(gm_reg_a, gm_reg_b, p_slmethod, p_sldiv, p_slgrid, p_slsens);
+  );
+);
+
+// ---------------------------------------------------------------------------
+// Control panel layout
+// ---------------------------------------------------------------------------
+function gm_build_ui()
+(
+  gm_nctl = 0;
+
+  // ---- page 1: PLAY --------------------------------------------------------
+  gm_ctl_cell(CT_SELECT,  2, 0,   0, 3,   1, 0, 0, 1, "MODE",        "Classic|One-Shot|Slice|Granular");
+  gm_ctl_cell(CT_KNOB,    3, 60,  0, 127, 1, 1, 0, 1, "ROOT KEY",    "note %d");
+  gm_ctl_cell(CT_KNOB,    4, 0, -48, 48,  1, 2, 0, 1, "TRANSPOSE",   "%+d st");
+  gm_ctl_cell(CT_SELECT,  5, 1,   0, 2,   1, 3, 0, 1, "KEY TRACK",   "Off|Transpose|Rate");
+  gm_ctl_cell(CT_KNOB,    6, 8,   1, 16,  1, 4, 0, 1, "POLYPHONY",   "%d");
+  gm_ctl_cell(CT_SELECT,  7, 2,   0, 2,   1, 5, 0, 1, "VELOCITY",    "Source|Played Key|Blend");
+  gm_ctl_cell(CT_KNOB,    8, 100, 0, 200, 1, 6, 0, 1, "VEL SCALE",   "%d %%");
+
+  gm_ctl_cell(CT_KNOB,    9, 100, 1, 400, 1, 0, 1, 1, "NOTE LENGTH", "%d %%");
+  gm_ctl_cell(CT_KNOB,   10, 0,   0, 16,  1, 1, 1, 1, "OUT CHANNEL", "%d");
+  gm_ctl_cell(CT_KNOB,   11, 0,   0, 60, 0.1,2, 1, 1, "HUMAN TIME",  "%.1f ms");
+  gm_ctl_cell(CT_KNOB,   12, 0,   0, 48,  1, 3, 1, 1, "HUMAN VEL",   "%d");
+  gm_ctl_cell(CT_TOGGLE, 13, 0,   0, 1,   1, 4, 1, 1, "MIDI THRU",   "Off|On");
+  gm_ctl_cell(CT_SELECT, 55, 0,   0, 2,   1, 5, 1, 1, "RETRIGGER",   "Restart|Ignore|Legato");
+  gm_ctl_cell(CT_TOGGLE, 56, 0,   0, 1,   1, 6, 1, 1, "MONO CHOKE",  "Off|On");
+
+  // ---- page 2: WARP + LOOP -------------------------------------------------
+  gm_ctl_cell(CT_SELECT, 14, 1,   0, 2,   1, 0, 0, 2, "WARP",        "Free|Sync|Fixed Length");
+  gm_ctl_cell(CT_KNOB,   15, 1, 0.0625, 8, 0.0001, 1, 0, 2, "SPEED", "x%.3f");
+  gm_ctl_cell(CT_KNOB,   16, 4, 0.25, 64, 0.25, 2, 0, 2, "FIXED LEN", "%.2f bt");
+  gm_ctl_cell(CT_SELECT, 17, 0,   0, 1,   1, 3, 0, 2, "START",       "Retrigger|Transport Lock");
+  gm_ctl_cell(CT_SELECT, 18, 0,   0, 5,   1, 4, 0, 2, "TRIG QUANT",  "Off|1/16|1/8|1/4|1/2|1 Bar");
+  gm_ctl_cell(CT_KNOB,   19, 0,   0, 99, 0.01, 5, 0, 2, "REGION ST", "%.2f %%");
+  gm_ctl_cell(CT_KNOB,   20, 100, 1, 100, 0.01, 6, 0, 2, "REGION LEN", "%.2f %%");
+
+  gm_ctl_cell(CT_TOGGLE, 21, 0,   0, 1,   1, 0, 1, 2, "REVERSE",     "Off|On");
+  gm_ctl_cell(CT_TOGGLE, 22, 1,   0, 1,   1, 1, 1, 2, "LOOP",        "Off|On");
+  gm_ctl_cell(CT_SELECT, 23, 0,   0, 2,   1, 2, 1, 2, "LOOP MODE",   "Forward|Reverse|Ping-Pong");
+  gm_ctl_cell(CT_KNOB,   24, 0,   0, 99, 0.01, 3, 1, 2, "LOOP START", "%.2f %%");
+  gm_ctl_cell(CT_KNOB,   25, 100, 1, 100, 0.01, 4, 1, 2, "LOOP LEN", "%.2f %%");
+  gm_ctl_cell(CT_KNOB,   26, 0,   0, 64,  1, 5, 1, 2, "LOOP COUNT",  "%d");
+
+  // ---- page 3: AMP + FILTER ------------------------------------------------
+  gm_ctl_cell(CT_KNOB,   27, 0,   0, 5000, 1, 0, 0, 3, "ATTACK",     "%d ms");
+  gm_ctl_cell(CT_KNOB,   28, 500, 0, 10000, 1, 1, 0, 3, "DECAY",     "%d ms");
+  gm_ctl_cell(CT_KNOB,   29, 100, 0, 100, 0.1, 2, 0, 3, "SUSTAIN",   "%.1f %%");
+  gm_ctl_cell(CT_KNOB,   30, 80,  0, 10000, 1, 3, 0, 3, "RELEASE",   "%d ms");
+  gm_ctl_cell(CT_KNOB,   31, 100, 0, 100, 0.1, 4, 0, 3, "ENV AMOUNT","%.1f %%");
+  gm_ctl_cell(CT_KNOB,   32, 0,  -1, 1, 0.01, 5, 0, 3, "ENV CURVE",  "%+.2f");
+
+  gm_ctl_cell(CT_SELECT, 33, 0,   0, 4,   1, 0, 1, 3, "FILTER",      "Off|Lowpass|Highpass|Bandpass|Notch");
+  gm_ctl_cell(CT_KNOB,   34, 64,  0, 127, 0.1, 1, 1, 3, "CUTOFF",    "note %.0f");
+  gm_ctl_cell(CT_KNOB,   35, 24, 0.5, 60, 0.1, 2, 1, 3, "WIDTH",     "%.1f st");
+  gm_ctl_cell(CT_KNOB,   36, 12,  0, 48, 0.1, 3, 1, 3, "SLOPE",      "%.1f st");
+  gm_ctl_cell(CT_KNOB,   37, 0,   0, 100, 0.1, 4, 1, 3, "RESONANCE", "%.1f %%");
+  gm_ctl_cell(CT_KNOB,   38, 0,-100, 100, 1, 5, 1, 3, "KEY TRACK",   "%+d %%");
+  gm_ctl_cell(CT_KNOB,   39, 5,   0, 100, 1, 6, 1, 3, "THRESHOLD",   "%d %%");
+
+  // ---- page 4: SLICE -------------------------------------------------------
+  gm_ctl_cell(CT_SELECT, 40, 0,   0, 4,   1, 0, 0, 4, "METHOD",      "Divisions|Beats|Onsets|Pitch Changes|Manual Markers");
+  gm_ctl_cell(CT_KNOB,   41, 16,  1, 128, 1, 1, 0, 4, "DIVISIONS",   "%d");
+  gm_ctl_cell(CT_SELECT, 42, 1,   0, 6,   1, 2, 0, 4, "GRID",        "1/32|1/16|1/8|1/4|1/2|1 Bar|2 Bars");
+  gm_ctl_cell(CT_KNOB,   43, 50,  0, 100, 1, 3, 0, 4, "SENSITIVITY", "%d %%");
+  gm_ctl_cell(CT_KNOB,   44, 36,  0, 127, 1, 4, 0, 4, "MAP ROOT",    "note %d");
+  gm_ctl_cell(CT_SELECT, 45, 0,   0, 1,   1, 5, 0, 4, "GATE",        "Until Slice End|While Held");
+
+  // ---- page 5: GRANULAR ----------------------------------------------------
+  gm_ctl_cell(CT_KNOB,   46, 16,  1, 256, 1, 0, 0, 5, "GRAINS",      "%d");
+  gm_ctl_cell(CT_KNOB,   47, 0.25, 0.01, 8, 0.001, 1, 0, 5, "SIZE",  "%.3f bt");
+  gm_ctl_cell(CT_KNOB,   48, 0,   0, 100, 0.1, 2, 0, 5, "SPRAY",     "%.1f %%");
+  gm_ctl_cell(CT_KNOB,   49, 0,  -4, 4, 0.001, 3, 0, 5, "MOTION",    "%+.3f");
+  gm_ctl_cell(CT_SELECT, 50, 0,   0, 3,   1, 4, 0, 5, "DIRECTION",   "Forward|Reverse|Alternate|Random");
+  gm_ctl_cell(CT_KNOB,   51, 100, 1, 100, 1, 5, 0, 5, "DENSITY",     "%d %%");
+  gm_ctl_cell(CT_KNOB,   52, 0,   0, 24,  1, 6, 0, 5, "PITCH SPREAD","%d st");
+
+  gm_ctl_cell(CT_SELECT, 53, 0,   0, 2,   1, 0, 1, 5, "SPREAD",      "Even|Random|Cloud");
+  gm_ctl_cell(CT_KNOB,   54, 1,   1, 999, 1, 1, 1, 5, "SEED",        "%d");
+);
+
+function gm_reset_state() local(i)
+(
+  i = 0; while (i < MAX_VOICES) ( VOICES[i * V_STRIDE + V_STATE] = 0; i += 1; );
+  i = 0; while (i < MAX_GRAINS) ( GRAINS[i * G_STRIDE + G_OWNER] = 0; i += 1; );
+  i = 0; while (i < MAX_VOICES + MAX_GRAINS) ( STREAMS[i * S_STRIDE + S_ACTIVE] = 0; i += 1; );
+  i = 0;
+  while (i < MAX_SOUND) (
+    SOUND[i * N_STRIDE + N_USED] = 0;
+    SOUND[i * N_STRIDE + N_KEY]  = -1;
+    SOUND[i * N_STRIDE + N_OWNER] = -1;
+    i += 1;
+  );
+  memset(SOUNDMAP, 0, 2048);
+  gm_sustain = 0;
+);
+
+gm_init_consts();
+gm_ui_consts();
+gm_build_ui();
+gm_reset_state();
+
+gm_now        = 0;
+gm_agecnt     = 1;
+gm_srate      = srate;
+gm_bps        = 120 / 60 / max(srate, 1);
+gm_blk_len    = 0;
+gm_ts_num     = 4;
+gm_ts_den     = 4;
+gm_lastfile   = -1;
+gm_lastplay   = 0;
+gm_reload     = 1;
+gm_slice_dirty = 1;
+gm_src_n      = 0;
+gm_src_len    = 4;
+gm_src_tempo  = 120;
+gm_src_tsnum  = 4;
+gm_src_tsden  = 4;
+gm_nmark      = 0;
+gm_nslices    = 0;
+gm_slice_hash = -1;
+strcpy(#gm_name, "(no source)");
+
+@slider
+
+// Parameter fan-out happens in @block (so UI-driven changes apply even when the
+// host does not re-run this section); all that is needed here is to invalidate
+// the cached slice map.
+gm_slice_dirty = 1;
+
+@block
+
+srate != gm_srate ? ( gm_srate = srate; gm_reset_state(); );
+
+gm_blk_start = gm_now;
+gm_blk_len   = samplesblock;
+gm_blk_beat  = beat_position;
+gm_ts_num    = max(ts_num, 1);
+gm_ts_den    = max(ts_denom, 1);
+gm_bps       = max(tempo, 1) / 60 / max(srate, 1);
+
+// ---- transport ------------------------------------------------------------
+play_state != gm_lastplay ? (
+  ((gm_lastplay == 1 || gm_lastplay == 5) && play_state != 1 && play_state != 5) ? gm_panic(0);
+  gm_lastplay = play_state;
+);
+
+// ---- (re)load the source file --------------------------------------------
+slider1 != gm_lastfile ? ( gm_lastfile = slider1; gm_reload = 1; );
+gm_reload ? (
+  gm_reload = 0;
+  gm_panic(0);
+  gm_fh = file_open(slider1);
+  gm_fh >= 0 ? (
+    gm_load_handle(gm_fh) ? strcpy_fromslider(#gm_name, slider1) : gm_make_default();
+    file_close(gm_fh);
+  ) : gm_make_default();
+  // user-edited markers win over whatever the file carried
+  gm_mark_edited ? (
+    gm_nmark = gm_clamp(gm_ser_nmark | 0, 0, MAX_MARKERS);
+    gm_nmark > 0 ? memcpy(MARKERS, MARKERS_SV, gm_nmark);
+  );
+  gm_slice_dirty = 1;
+);
+
+gm_apply_params();
+
+// ---- MIDI input -----------------------------------------------------------
+while (midirecv(gm_off, gm_m1, gm_m2, gm_m3)) (
+  gm_st = gm_m1 & $xF0;
+  gm_ch = gm_m1 & $x0F;
+  gm_t  = gm_blk_start + gm_off;
+
+  (gm_st == $x90 && gm_m3 > 0) ? (
+    gm_trigger(gm_m2, gm_m3, gm_ch, gm_t);
+    p_thru ? midisend(gm_off, gm_m1, gm_m2, gm_m3);
+  ) :
+  (gm_st == $x80 || (gm_st == $x90 && gm_m3 == 0)) ? (
+    gm_note_off(gm_m2, gm_ch, gm_t);
+    p_thru ? midisend(gm_off, gm_m1, gm_m2, gm_m3);
+  ) :
+  (gm_st == $xB0 && gm_m2 == 64) ? (
+    gm_m3 >= 64 ? gm_sustain = 1 : ( gm_sustain = 0; gm_sustain_off(gm_t); );
+    midisend(gm_off, gm_m1, gm_m2, gm_m3);
+  ) :
+  (gm_st == $xB0 && (gm_m2 == 120 || gm_m2 == 123)) ? (
+    gm_panic(gm_off);
+    midisend(gm_off, gm_m1, gm_m2, gm_m3);
+  ) :
+  midisend(gm_off, gm_m1, gm_m2, gm_m3);
+);
+
+// ---- render ---------------------------------------------------------------
+gm_render_block();
+gm_now += samplesblock;
+
+@serialize
+
+gm_init_consts();
+gm_ser_avail = file_avail(0);
+gm_ser_avail >= 3 ? (
+  file_var(0, gm_ser_ver);
+  file_var(0, gm_mark_edited);
+  file_var(0, gm_ser_nmark);
+  gm_ser_nmark = gm_clamp(gm_ser_nmark | 0, 0, MAX_MARKERS);
+  gm_ser_nmark > 0 ? file_mem(0, MARKERS_SV, gm_ser_nmark);
+  gm_reload = 1;
+) : (
+  gm_ser_avail < 0 ? (
+    gm_ser_ver = 1;
+    gm_mark_edited ? (
+      gm_ser_nmark = gm_clamp(gm_nmark | 0, 0, MAX_MARKERS);
+      gm_ser_nmark > 0 ? memcpy(MARKERS_SV, MARKERS, gm_ser_nmark);
+    );
+    gm_ser_nmark = gm_clamp(gm_ser_nmark | 0, 0, MAX_MARKERS);
+    file_var(0, gm_ser_ver);
+    file_var(0, gm_mark_edited);
+    file_var(0, gm_ser_nmark);
+    gm_ser_nmark > 0 ? file_mem(0, MARKERS_SV, gm_ser_nmark);
+  );
+);
+
+@gfx 920 600
+
+gfx_getchar();
+gm_ui_mouse();
+gm_ui_draw();
