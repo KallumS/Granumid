@@ -25,75 +25,75 @@ options:no_meter gfx_hz=30
 slider1:/granumid:default.txt:Source File
 
 // --- play -------------------------------------------------------------------
-slider2:0<0,3,1{Classic,One-Shot,Slice,Granular}>Mode
-slider3:60<0,127,1>Root Key
-slider4:0<-48,48,1>Transpose
-slider5:1<0,2,1{Off,Transpose,Rate (pitch)}>Key Tracking
-slider6:8<1,16,1>Polyphony
-slider7:2<0,2,1{Source,Played Key,Blend}>Velocity Source
-slider8:100<0,200,1>Velocity Scale
-slider9:100<1,400,1>Note Length
-slider10:0<0,16,1>Output Channel
-slider11:0<0,60,0.1>Humanize Timing
-slider12:0<0,48,1>Humanize Velocity
-slider13:0<0,1,1{Off,On}>MIDI Thru
+slider2:0<0,3,1{Classic,One-Shot,Slice,Granular}>-Mode
+slider3:60<0,127,1>-Root Key
+slider4:0<-48,48,1>-Transpose
+slider5:1<0,2,1{Off,Transpose,Rate (pitch)}>-Key Tracking
+slider6:8<1,16,1>-Polyphony
+slider7:2<0,2,1{Source,Played Key,Blend}>-Velocity Source
+slider8:100<0,200,1>-Velocity Scale
+slider9:100<1,400,1>-Note Length
+slider10:0<0,16,1>-Output Channel
+slider11:0<0,60,0.1>-Humanize Timing
+slider12:0<0,48,1>-Humanize Velocity
+slider13:0<0,1,1{Off,On}>-MIDI Thru
 
 // --- warp -------------------------------------------------------------------
-slider14:1<0,2,1{Free (source tempo),Sync (project),Fixed Length}>Warp Mode
-slider15:1<0.0625,8,0.0001>Speed
-slider16:4<0.25,64,0.25>Fixed Length
-slider17:0<0,1,1{Retrigger,Transport Lock}>Start Mode
-slider18:0<0,5,1{Off,1/16,1/8,1/4,1/2,1 Bar}>Trigger Quantize
-slider19:0<0,99,0.01>Region Start
-slider20:100<1,100,0.01>Region Length
-slider21:0<0,1,1{Off,On}>Reverse
+slider14:1<0,2,1{Free (source tempo),Sync (project),Fixed Length}>-Warp Mode
+slider15:1<0.0625,8,0.0001>-Speed
+slider16:4<0.25,64,0.25>-Fixed Length
+slider17:0<0,1,1{Retrigger,Transport Lock}>-Start Mode
+slider18:0<0,5,1{Off,1/16,1/8,1/4,1/2,1 Bar}>-Trigger Quantize
+slider19:0<0,99,0.01>-Region Start
+slider20:100<1,100,0.01>-Region Length
+slider21:0<0,1,1{Off,On}>-Reverse
 
 // --- loop -------------------------------------------------------------------
-slider22:1<0,1,1{Off,On}>Loop
-slider23:0<0,2,1{Forward,Reverse,Ping-Pong}>Loop Mode
-slider24:0<0,99,0.01>Loop Start
-slider25:100<1,100,0.01>Loop Length
-slider26:0<0,64,1>Loop Count
+slider22:1<0,1,1{Off,On}>-Loop
+slider23:0<0,2,1{Forward,Reverse,Ping-Pong}>-Loop Mode
+slider24:0<0,99,0.01>-Loop Start
+slider25:100<1,100,0.01>-Loop Length
+slider26:0<0,64,1>-Loop Count
 
 // --- amplitude envelope -----------------------------------------------------
-slider27:0<0,5000,1>Attack
-slider28:500<0,10000,1>Decay
-slider29:100<0,100,0.1>Sustain
-slider30:80<0,10000,1>Release
-slider31:100<0,100,0.1>Env Amount
-slider32:0<-1,1,0.01>Env Curve
+slider27:0<0,5000,1>-Attack
+slider28:500<0,10000,1>-Decay
+slider29:100<0,100,0.1>-Sustain
+slider30:80<0,10000,1>-Release
+slider31:100<0,100,0.1>-Env Amount
+slider32:0<-1,1,0.01>-Env Curve
 
 // --- note filter ------------------------------------------------------------
-slider33:0<0,4,1{Off,Lowpass,Highpass,Bandpass,Notch}>Filter Mode
-slider34:64<0,127,0.1>Filter Cutoff
-slider35:24<0.5,60,0.1>Filter Width
-slider36:12<0,48,0.1>Filter Slope
-slider37:0<0,100,0.1>Filter Resonance
-slider38:0<-100,100,1>Filter Key Track
-slider39:5<0,100,1>Filter Threshold
+slider33:0<0,4,1{Off,Lowpass,Highpass,Bandpass,Notch}>-Filter Mode
+slider34:64<0,127,0.1>-Filter Cutoff
+slider35:24<0.5,60,0.1>-Filter Width
+slider36:12<0,48,0.1>-Filter Slope
+slider37:0<0,100,0.1>-Filter Resonance
+slider38:0<-100,100,1>-Filter Key Track
+slider39:5<0,100,1>-Filter Threshold
 
 // --- slice ------------------------------------------------------------------
-slider40:0<0,4,1{Divisions,Beats,Onsets,Pitch Changes,Manual Markers}>Slice Method
-slider41:16<1,128,1>Slice Divisions
-slider42:1<0,6,1{1/32,1/16,1/8,1/4,1/2,1 Bar,2 Bars}>Slice Grid
-slider43:50<0,100,1>Onset Sensitivity
-slider44:36<0,127,1>Slice Map Root
-slider45:0<0,1,1{Until Slice End,While Held}>Slice Gate
+slider40:0<0,4,1{Divisions,Beats,Onsets,Pitch Changes,Manual Markers}>-Slice Method
+slider41:16<1,128,1>-Slice Divisions
+slider42:1<0,6,1{1/32,1/16,1/8,1/4,1/2,1 Bar,2 Bars}>-Slice Grid
+slider43:50<0,100,1>-Onset Sensitivity
+slider44:36<0,127,1>-Slice Map Root
+slider45:0<0,1,1{Until Slice End,While Held}>-Slice Gate
 
 // --- granular ---------------------------------------------------------------
-slider46:16<1,256,1>Grain Count
-slider47:0.25<0.01,8,0.001>Grain Size
-slider48:0<0,100,0.1>Grain Spray
-slider49:0<-4,4,0.001>Grain Motion
-slider50:0<0,3,1{Forward,Reverse,Alternate,Random}>Grain Direction
-slider51:100<1,100,1>Grain Density
-slider52:0<0,24,1>Grain Pitch Spread
-slider53:0<0,2,1{Even,Random,Cloud}>Grain Spread
-slider54:1<1,999,1>Grain Seed
+slider46:16<1,256,1>-Grain Count
+slider47:0.25<0.01,8,0.001>-Grain Size
+slider48:0<0,100,0.1>-Grain Spray
+slider49:0<-4,4,0.001>-Grain Motion
+slider50:0<0,3,1{Forward,Reverse,Alternate,Random}>-Grain Direction
+slider51:100<1,100,1>-Grain Density
+slider52:0<0,24,1>-Grain Pitch Spread
+slider53:0<0,2,1{Even,Random,Cloud}>-Grain Spread
+slider54:1<1,999,1>-Grain Seed
 
 // --- mono behaviour ---------------------------------------------------------
-slider55:0<0,2,1{Restart,Ignore While Playing,Legato}>One-Shot Retrigger
-slider56:0<0,1,1{Off,On}>Mono Choke
+slider55:0<0,2,1{Restart,Ignore While Playing,Legato}>-One-Shot Retrigger
+slider56:0<0,1,1{Off,On}>-Mono Choke
 
 import granumid_core.jsfx-inc
 import granumid_engine.jsfx-inc

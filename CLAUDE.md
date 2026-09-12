@@ -57,6 +57,15 @@ several of them are not obvious.
 - `sliderN:name=default<...>` variable-name syntax would break `slider(i)`
   access, which the table-driven GUI depends on. That is why sliders are plain
   `sliderN` and `gm_apply_params()` fans them out into named globals by hand.
+- **A `@gfx` canvas does not replace the sliders — REAPER stacks the sliders
+  above it.** With 55 of them the canvas ends up far below the fold, which looks
+  exactly like "the GUI isn't there". Every slider the panel draws therefore
+  carries the documented `-` prefix on its description
+  (`slider2:0<0,3,1{...}>-Mode`), which hides it from the plug-in UI while
+  leaving it active, automatable and visible under the Param button. A test
+  asserts this so a newly added slider cannot push the canvas down again.
+  `slider1` (Source File) is deliberately left visible as a fallback until the
+  in-GUI file menu is confirmed working in REAPER.
 
 **Files**
 
@@ -168,9 +177,11 @@ If someone reports a bug, check these before suspecting the engine.
 
 **Reading a failure:** REAPER prints the first compile error at the top of the FX
 window and then falls back to the generated slider UI, because the header parses
-even when the code does not. So "no custom GUI, just sliders" is the *symptom of
-a compile error*, not a separate `@gfx` problem — read the error line first. The
-compiler stops at the first error, so fixing one can reveal the next.
+even when the code does not. So read the error line first; the compiler stops at
+the first error, so fixing one can reveal the next. Note that "sliders and no
+custom GUI" has *two* possible causes — a compile error, or visible sliders
+pushing the `@gfx` canvas below the fold (see the `-` prefix note above). If
+there is no error message, it is the second one.
 
 ## Agreed next steps (not yet implemented)
 

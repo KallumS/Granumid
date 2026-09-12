@@ -229,6 +229,15 @@ check('no two controls share a cell', len(cells) == len(set(cells)))
 
 ip.g['slider2'] = 2.0         # slice mode, so the roll draws slice markers too
 h.block(BL)
+# Sliders are drawn above the @gfx canvas by REAPER, so a visible one pushes the
+# GUI down the window. Everything the panel draws must carry the '-' hide prefix.
+import re as _re
+_hdr = open(os.path.join(HERE, os.pardir, 'Granumid.jsfx')).read()
+_shown = [int(m.group(1)) for m in
+          _re.finditer(r'^slider(\d+):.*>(?!-)', _hdr, _re.M)]
+check('every panel slider is hidden from the plug-in UI', not _shown,
+      'visible: %s' % _shown)
+
 for page in range(1, 6):
     ip.g['gm_page'] = float(page)
     h.gfx()
