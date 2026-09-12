@@ -110,7 +110,7 @@ function gm_draw_knob(ci, hot) local(c, cx, cy, r, v, f, a, a0, a1)
   cy = c[C_Y] + 46;
   r  = 24;
   v  = slider(c[C_SL]);
-  f  = gm_clamp((v - c[C_MIN]) / max(c[C_MAX] - c[C_MIN], 1.0e-9), 0, 1);
+  f  = gm_clamp((v - c[C_MIN]) / max(c[C_MAX] - c[C_MIN], 0.000000001), 0, 1);
   a0 = -2.3562; a1 = 2.3562;
   a  = a0 + (a1 - a0) * f;
 
@@ -168,7 +168,7 @@ function gm_draw_toggle(ci, hot) local(c, x, y, w, on)
 // ---------------------------------------------------------------------------
 // Piano roll
 // ---------------------------------------------------------------------------
-function gm_roll_x(t) ( RL_X + gm_clamp(t / max(gm_src_len, 1.0e-6), 0, 1) * RL_W );
+function gm_roll_x(t) ( RL_X + gm_clamp(t / max(gm_src_len, 0.000001), 0, 1) * RL_W );
 
 function gm_draw_roll() local(i, np, x0, x1, y, h, lo, hi, v, span, s, vp, pos, dir, sl, gi)
 (
@@ -321,7 +321,7 @@ function gm_draw_header() local(x, w)
 (
   gfx_set(0.11, 0.12, 0.16, 1);
   gfx_rect(0, 0, UI_W, 38);
-  gfx_setfont(2, "Arial", 20, 'b');
+  gfx_setfont(2, "Arial", 20, $'b');
   gfx_set(0.30, 0.72, 0.98, 1);
   gm_txt(14, 8, 160, 22, "GRANUMID", 4);
   gfx_setfont(1, "Arial", 13);

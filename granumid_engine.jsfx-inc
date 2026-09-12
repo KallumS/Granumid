@@ -185,7 +185,7 @@ function gm_emit(si, ni, tsmp)
       p_humv > 0 ? vel += gm_rnd_bi(vp + V_RNG) * p_humv;
       vel = gm_clamp(vel | 0, 0, 127);
       vel > 0 ? (
-        rate = max(sp[S_RATE], 1.0e-12);
+        rate = max(sp[S_RATE], 0.000000000001);
         ln   = np[1] * p_gate * 0.01;
         dur  = ln / rate;
         chan = p_outchan == 0 ? np[4] : (p_outchan - 1);
@@ -218,7 +218,7 @@ function gm_stream_setup(si, vi, startPos, regA, regB, loopA, loopB, loopen, dir
     a = SL - (loopen ? loopB : regB);
     b = SL - (loopen ? loopA : regA);
   );
-  b - a < 1.0e-4 ? b = a + 1.0e-4;
+  b - a < 0.0001 ? b = a + 0.0001;
   p > b ? p = a;
 
   sp[S_ACTIVE]   = 1;
@@ -271,22 +271,22 @@ function gm_stream_render(si, basesmp, nsmp)
     curoff = 0;
     guard  = 0;
     n      = gm_src_n;
-    while (remain > 1.0e-9 && sp[S_ACTIVE] && (guard += 1) < 512) (
+    while (remain > 0.000000001 && sp[S_ACTIVE] && (guard += 1) < 512) (
       sp[S_DIR] > 0 ? ( ord = ORD_FWD; keyb = KEY_FWD; ) : ( ord = ORD_REV; keyb = KEY_REV; );
       pos     = sp[S_POS];
       rate    = sp[S_RATE];
-      tolimit = rate > 1.0e-12 ? (sp[S_SEGB] - pos) / rate : 1.0e18;
+      tolimit = rate > 0.000000000001 ? (sp[S_SEGB] - pos) / rate : 1000000000;
       tolimit < 0 ? tolimit = 0;
       chunk   = min(remain, tolimit);
       newpos  = pos + rate * chunk;
-      span    = max(sp[S_SEGB] - sp[S_SEGA], 1.0e-9);
+      span    = max(sp[S_SEGB] - sp[S_SEGA], 0.000000001);
 
       i = sp[S_EVI];
       while (i < n && keyb[ord[i]] < newpos) (
         evk = keyb[ord[i]];
         evk >= pos ? (
           gm_emit_frac = (evk - sp[S_SEGA]) / span;
-          gm_emit(si, ord[i], basesmp + curoff + (evk - pos) / max(rate, 1.0e-12));
+          gm_emit(si, ord[i], basesmp + curoff + (evk - pos) / max(rate, 0.000000000001));
         );
         i += 1;
       );
@@ -295,7 +295,7 @@ function gm_stream_render(si, basesmp, nsmp)
       curoff   += chunk;
       remain   -= chunk;
 
-      newpos >= sp[S_SEGB] - 1.0e-9 ? gm_stream_end(si);
+      newpos >= sp[S_SEGB] - 0.000000001 ? gm_stream_end(si);
       (sp[S_ENDSMP] > 0 && basesmp + curoff >= sp[S_ENDSMP]) ? sp[S_ACTIVE] = 0;
     );
   );
@@ -357,7 +357,7 @@ function gm_grain_spawn(vi, g, tsmp)
 
   a = vp[V_SEGA];
   b = vp[V_SEGB];
-  L = max(b - a, 1.0e-4);
+  L = max(b - a, 0.0001);
   size = gm_clamp(p_gsize, 0.005, L);
 
   // motion drifts the cloud across the region as project time passes
@@ -371,7 +371,7 @@ function gm_grain_spawn(vi, g, tsmp)
   // EEL2's % is integer-only, so wrap by hand
   pos = pos - floor((pos - a) / L) * L;
   endp = min(pos + size, b);
-  endp - pos < 1.0e-4 ? ( pos = a; endp = min(a + size, b); );
+  endp - pos < 0.0001 ? ( pos = a; endp = min(a + size, b); );
 
   p_gdir == 0 ? dir = 1 :
   p_gdir == 1 ? dir = -1 :
@@ -384,7 +384,7 @@ function gm_grain_spawn(vi, g, tsmp)
   sp = STREAMS + si * S_STRIDE;
   sp[S_TRANSP] = pit;
 
-  life = (endp - pos) / max(vp[V_RATE], 1.0e-12);
+  life = (endp - pos) / max(vp[V_RATE], 0.000000000001);
   sp[S_ENDSMP] = tsmp + life + 1;
   gp[G_BIRTH]  = tsmp;
   gp[G_LIFE]   = max(life * 100 / gm_clamp(p_gdens, 1, 100), 16);
@@ -450,7 +450,7 @@ function gm_voice_release(vi, tsmp) local(vp)
 
 function gm_voice_alloc(tsmp) local(i, vp, free, oldrel, oldrela, oldest, oldesta, nact)
 (
-  free = -1; oldrel = -1; oldrela = 1.0e18; oldest = -1; oldesta = 1.0e18; nact = 0;
+  free = -1; oldrel = -1; oldrela = 1000000000; oldest = -1; oldesta = 1000000000; nact = 0;
   i = 0;
   while (i < MAX_VOICES) (
     vp = VOICES + i * V_STRIDE;
@@ -479,7 +479,7 @@ function gm_active_voice() local(i, r)
 // Warp ratio: source beats consumed per project beat.
 function gm_warp_ratio()
 (
-  p_warp == 0 ? (gm_src_tempo / 60) / max(tempo / 60, 1.0e-9) * p_speed :
+  p_warp == 0 ? (gm_src_tempo / 60) / max(tempo / 60, 0.000000001) * p_speed :
   p_warp == 1 ? p_speed :
                 (gm_src_len / max(p_fixlen, 0.01)) * p_speed;
 );
@@ -493,7 +493,7 @@ function gm_quantize_start(tsmp) local(g, bt, tgt)
       p_tquant == 5 ? gm_ts_num * 4 / gm_ts_den : 0;
   (g > 0 && play_state == 1 && gm_bps > 0) ? (
     bt  = gm_blk_beat + (tsmp - gm_blk_start) * gm_bps;
-    tgt = ceil(bt / g - 1.0e-6) * g;
+    tgt = ceil(bt / g - 0.000001) * g;
     tsmp = tsmp + (tgt - bt) / gm_bps;
   );
   tsmp;
@@ -536,14 +536,14 @@ function gm_voice_start(vi, key, vel, chan, tsmp, sl)
     a = gm_reg_a;
     b = gm_reg_b;
   );
-  span = max(b - a, 1.0e-4);
+  span = max(b - a, 0.0001);
   vp[V_SEGA] = a;
   vp[V_SEGB] = b;
 
   la = a + span * p_loopstart * 0.01;
   lb = la + span * p_looplen * 0.01;
   lb = min(lb, b);
-  la = min(la, lb - 1.0e-4);
+  la = min(la, lb - 0.0001);
   la < a ? la = a;
 
   loopen = (p_mode == 3) ? 0 : p_loopon;
@@ -565,7 +565,7 @@ function gm_voice_start(vi, key, vel, chan, tsmp, sl)
     gm_grain_reserve(vi, p_gcount) ? (
       // "Even" spawns the whole cloud at once (the region is split in parallel);
       // the random shapes stagger the first cycle so the cloud fades in.
-      la = p_gshape == 0 ? 0 : gm_clamp(p_gsize, 0.005, span) / max(rate, 1.0e-12);
+      la = p_gshape == 0 ? 0 : gm_clamp(p_gsize, 0.005, span) / max(rate, 0.000000000001);
       i = 0;
       while (i < vp[V_NGRAIN]) (
         GRAINS[(vp[V_GBASE] + i) * G_STRIDE + G_BIRTH] = vp[V_STARTSMP] - 1;

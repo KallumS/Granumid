@@ -38,6 +38,13 @@ several of them are not obvious.
   This is why `import` order in `Granumid.jsfx` is core → engine → ui, and why
   e.g. `gm_voice_kill` is declared above `gm_voice_release`. Sorting and binary
   search are iterative for the same reason (`gm_heapsort`, `gm_find_ev`).
+- **No scientific notation.** `1.0e-9` lexes as the number `1.0` followed by the
+  identifier `e`, and REAPER rejects it: `syntax error: '... 1.0 <!> e-9'`.
+  Write every constant out in full (`0.000000001`). This shipped once, in 45
+  places; `tests/eel2.py` now raises on it by name so it cannot recur.
+- **`$'c'` is the documented form for a character code**, not bare `'c'`. The
+  graphics reference shows font flags as `'b'`/`'i'`/`'u'` in prose, which is not
+  a promise about the lexer — use `$'b'`.
 - **`%` is integer-only.** It converts the absolute values of both operands to
   integers. Never use it for float modulo — wrap by hand:
   `x = x - floor((x - a) / L) * L` (see `gm_grain_spawn`).
@@ -158,6 +165,12 @@ check, in rough order of likelihood:
    bitmask exceeds 32 bits
 
 If someone reports a bug, check these before suspecting the engine.
+
+**Reading a failure:** REAPER prints the first compile error at the top of the FX
+window and then falls back to the generated slider UI, because the header parses
+even when the code does not. So "no custom GUI, just sliders" is the *symptom of
+a compile error*, not a separate `@gfx` problem — read the error line first. The
+compiler stops at the first error, so fixing one can reveal the next.
 
 ## Agreed next steps (not yet implemented)
 

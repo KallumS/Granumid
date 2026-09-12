@@ -117,7 +117,7 @@ function gm_rndm(p)
 (
   p[0] < 1 ? p[0] = 1;
   p[0] = (p[0] * 16807) % 2147483647;
-  p[0] * 4.656612875e-10;
+  p[0] * 0.0000000004656612875;
 );
 
 function gm_rnd_bi(p) ( gm_rndm(p) * 2 - 1 );
@@ -285,7 +285,7 @@ function gm_load_handle(h)
 // ---------------------------------------------------------------------------
 function gm_slice_push(a, b)
 (
-  (gm_nslices < MAX_SLICES && b - a > 1.0e-6) ? (
+  (gm_nslices < MAX_SLICES && b - a > 0.000001) ? (
     SLICES[gm_nslices * 2]     = a;
     SLICES[gm_nslices * 2 + 1] = b;
     gm_nslices += 1;
@@ -306,7 +306,7 @@ function gm_slice_grid(a, b, g) local(t, nx)
 (
   g <= 0 ? g = 1;
   t = a;
-  while (t < b - 1.0e-6 && gm_nslices < MAX_SLICES) (
+  while (t < b - 0.000001 && gm_nslices < MAX_SLICES) (
     nx = min(t + g, b);
     gm_slice_push(t, nx);
     t = nx;
@@ -320,15 +320,15 @@ function gm_slice_onsets(a, b, sens) local(i, ni, k, tol, last, nn, minv, vel)
 (
   tol  = 0.5 * pow(0.02, sens / 100);          // 0.5 beat .. 0.01 beat
   minv = (1 - sens / 100) * 48;                // ignore quiet notes at low sensitivity
-  last = -1e18;
+  last = -1000000;
   nn   = 0;
   i    = 0;
   while (i < gm_src_n && gm_nslices < MAX_SLICES) (
     ni  = ORD_FWD[i];
     k   = KEY_FWD[ni];
     vel = BUF_NOTES[ni * NOTE_STRIDE + 3];
-    (k >= a - 1.0e-6 && k < b - 1.0e-6 && vel >= minv && k - last > tol) ? (
-      nn > 0 ? gm_slice_push(last, k) : (k > a + 1.0e-6 ? gm_slice_push(a, k));
+    (k >= a - 0.000001 && k < b - 0.000001 && vel >= minv && k - last > tol) ? (
+      nn > 0 ? gm_slice_push(last, k) : (k > a + 0.000001 ? gm_slice_push(a, k));
       last = k;
       nn  += 1;
     );
@@ -342,20 +342,20 @@ function gm_slice_pitch(a, b, sens)
   local(i, ni, k, p, tol, gstart, gtop, prevtop, last)
 (
   tol     = 0.5 * pow(0.02, sens / 100);
-  gstart  = -1e18;
+  gstart  = -1000000;
   gtop    = -1;
-  prevtop = -1e18;
+  prevtop = -1000000;
   last    = a;
   i       = 0;
   while (i < gm_src_n && gm_nslices < MAX_SLICES) (
     ni = ORD_FWD[i];
     k  = KEY_FWD[ni];
     p  = BUF_NOTES[ni * NOTE_STRIDE + 2];
-    (k >= a - 1.0e-6 && k < b - 1.0e-6) ? (
+    (k >= a - 0.000001 && k < b - 0.000001) ? (
       (gtop < 0 || k - gstart > tol) ? (
         // the previous onset group is complete - did its leading pitch change?
         (gtop >= 0 && gtop != prevtop) ? (
-          gstart > last + 1.0e-6 ? ( gm_slice_push(last, gstart); last = gstart; );
+          gstart > last + 0.000001 ? ( gm_slice_push(last, gstart); last = gstart; );
           prevtop = gtop;
         );
         gstart = k;
@@ -366,7 +366,7 @@ function gm_slice_pitch(a, b, sens)
     );
     i += 1;
   );
-  (gtop >= 0 && gtop != prevtop && gstart > last + 1.0e-6) ? ( gm_slice_push(last, gstart); last = gstart; );
+  (gtop >= 0 && gtop != prevtop && gstart > last + 0.000001) ? ( gm_slice_push(last, gstart); last = gstart; );
   gm_slice_push(last, b);
   gm_nslices == 0 ? gm_slice_push(a, b);
 );
@@ -380,7 +380,7 @@ function gm_slice_markers(a, b) local(i, t, last, n)
   i    = 0;
   while (i < gm_nmark && gm_nslices < MAX_SLICES) (
     t = MARKERS[i];
-    (t > a + 1.0e-6 && t < b - 1.0e-6) ? ( gm_slice_push(last, t); last = t; n += 1; );
+    (t > a + 0.000001 && t < b - 0.000001) ? ( gm_slice_push(last, t); last = t; n += 1; );
     i += 1;
   );
   gm_slice_push(last, b);
@@ -389,7 +389,7 @@ function gm_slice_markers(a, b) local(i, t, last, n)
 function gm_build_slices(a, b, method, div, grid, sens) local(g)
 (
   gm_nslices = 0;
-  b - a < 1.0e-4 ? b = a + 1.0e-4;
+  b - a < 0.0001 ? b = a + 0.0001;
   method == 0 ? gm_slice_divisions(a, b, div) :
   method == 1 ? (
     g = grid == 0 ? 0.125 : grid == 1 ? 0.25 : grid == 2 ? 0.5 :

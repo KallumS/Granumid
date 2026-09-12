@@ -175,19 +175,19 @@ function gm_apply_params() local(span, h)
   // playback region and loop bounds, in source beats
   gm_reg_a = gm_src_len * p_srcstart * 0.01;
   gm_reg_b = min(gm_reg_a + gm_src_len * p_srclen * 0.01, gm_src_len);
-  gm_reg_b - gm_reg_a < 1.0e-4 ? gm_reg_b = min(gm_reg_a + 1.0e-4, gm_src_len);
-  span = max(gm_reg_b - gm_reg_a, 1.0e-4);
+  gm_reg_b - gm_reg_a < 0.0001 ? gm_reg_b = min(gm_reg_a + 0.0001, gm_src_len);
+  span = max(gm_reg_b - gm_reg_a, 0.0001);
 
   gm_loop_a = gm_reg_a + span * p_loopstart * 0.01;
   gm_loop_b = min(gm_loop_a + span * p_looplen * 0.01, gm_reg_b);
-  gm_loop_a = min(gm_loop_a, gm_loop_b - 1.0e-4);
+  gm_loop_a = min(gm_loop_a, gm_loop_b - 0.0001);
   gm_loop_a < gm_reg_a ? gm_loop_a = gm_reg_a;
 
   gm_ratio     = gm_warp_ratio();      // cached: `tempo` is not valid in @gfx
   gm_base_rate = gm_bps * gm_ratio;
 
   // rebuild the slice map only when something it depends on actually moved
-  h = p_slmethod * 1.0e7 + p_sldiv * 1.0e4 + p_slgrid * 1.0e3 + p_slsens * 3 +
+  h = p_slmethod * 10000000 + p_sldiv * 10000 + p_slgrid * 1000 + p_slsens * 3 +
       gm_reg_a * 7.13 + gm_reg_b * 13.7 + gm_nmark * 31 + gm_src_n * 0.077 + gm_src_len * 0.31;
   (h != gm_slice_hash || gm_slice_dirty) ? (
     gm_slice_hash  = h;
