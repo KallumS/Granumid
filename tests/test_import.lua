@@ -1,4 +1,4 @@
---[[ Tests granumid_import.lua's Standard MIDI File reader without REAPER.
+--[[ Tests midular_import.lua's Standard MIDI File reader without REAPER.
 
        lua5.4 tests/test_import.lua
 --]]
@@ -62,12 +62,12 @@ t1 = t1 .. vlq(0) .. '\xff\x2f\x00'
 local mid = chunk('MThd', u16(1) .. u16(2) .. u16(TPQ)) .. chunk('MTrk', t0) .. chunk('MTrk', t1)
 
 -- ------------------------------------------------------ load as a library
-local path = here .. '/../Scripts/granumid_import.lua'
+local path = here .. '/../Scripts/midular_import.lua'
 local src = assert(io.open(path)):read('*a')
 src = src:gsub('reaper%.Undo_BeginBlock%(%)%s*main%(%)%s*reaper%.Undo_EndBlock%b()', '')
 src = src .. '\nreturn { parse_smf = parse_smf, write_phrase = write_phrase, sanitize = sanitize }\n'
 reaper = { ShowMessageBox = function() end }
-local M = assert(load(src, 'granumid_import'))()
+local M = assert(load(src, 'midular_import'))()
 
 print('\nStandard MIDI File reader')
 local ph, err = M.parse_smf(mid)

@@ -1,4 +1,4 @@
-"""Generates the Granumid source files the tests play back."""
+"""Generates the Midular source files the tests play back."""
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))

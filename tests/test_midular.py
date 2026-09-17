@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Executes Granumid.jsfx in the mini EEL2 interpreter and checks its MIDI output.
+"""Executes Midular.jsfx in the mini EEL2 interpreter and checks its MIDI output.
 
-    python3 tests/test_granumid.py
+    python3 tests/test_midular.py
 """
 import os, sys, time
 
@@ -11,11 +11,11 @@ sys.path.insert(0, HERE)
 import fixtures
 from harness import Host, note_on, note_off, summarize, SRATE
 
-JSFX = os.path.join(HERE, os.pardir, 'Granumid.jsfx')
+JSFX = os.path.join(HERE, os.pardir, 'Midular.jsfx')
 BL = 512
 ARP = fixtures.arp()
 FLAT = fixtures.flat()
-DEMO = os.path.join(HERE, os.pardir, 'Data', 'granumid', 'default.txt')
+DEMO = os.path.join(HERE, os.pardir, 'Data', 'midular', 'default.txt')
 
 _state = {'pass': 0, 'fail': 0}
 
@@ -72,14 +72,14 @@ def gap(ev):
 section('source loading')
 h = mk()
 check('arp.txt: 8 notes, 4 beats, 120 BPM, 1 marker',
-      (h.ip.g['gm_src_n'], h.ip.g['gm_src_len'], h.ip.g['gm_src_tempo'], h.ip.g['gm_nmark'])
+      (h.ip.g['md_src_n'], h.ip.g['md_src_len'], h.ip.g['md_src_tempo'], h.ip.g['md_nmark'])
       == (8, 4.0, 120.0, 1))
 h = mk(src=DEMO)
 check('shipped default.txt loads (36 notes, 8 beats, 3 markers)',
-      (h.ip.g['gm_src_n'], h.ip.g['gm_src_len'], h.ip.g['gm_nmark']) == (36, 8.0, 3))
+      (h.ip.g['md_src_n'], h.ip.g['md_src_len'], h.ip.g['md_nmark']) == (36, 8.0, 3))
 h = Host(JSFX, os.path.join(HERE, 'does-not-exist.txt'))
 h.block(64)
-check('missing file falls back to the built-in pattern', h.ip.g['gm_src_n'] > 0)
+check('missing file falls back to the built-in pattern', h.ip.g['md_src_n'] > 0)
 
 # --------------------------------------------------------------------- modes
 section('modes')
@@ -138,7 +138,7 @@ for method, name, extra, want in [(0, 'divisions', [(41, 4)], 4), (1, 'beats', [
                                   (4, 'manual markers', [], 2)]:
     h = mk([(2, 2), (40, method)] + extra)
     h.block(BL)
-    check('slice by %-14s -> %d slices' % (name, h.ip.g['gm_nslices']), h.ip.g['gm_nslices'] == want)
+    check('slice by %-14s -> %d slices' % (name, h.ip.g['md_nslices']), h.ip.g['md_nslices'] == want)
 
 # ---------------------------------------------------------------- envelope
 section('amplitude envelope')
@@ -215,7 +215,7 @@ h = mk()                      # no slider overrides: sliders still hold their de
 ip = h.ip
 C, S = int(ip.g['CTLS']), int(ip.g['C_STRIDE'])
 F = {k: int(ip.g[k]) for k in ('C_SL', 'C_DEF', 'C_MIN', 'C_MAX', 'C_X', 'C_Y', 'C_W', 'C_PAGE')}
-n = int(ip.g['gm_nctl'])
+n = int(ip.g['md_nctl'])
 sl = sorted(int(ip.mem[C + i * S + F['C_SL']]) for i in range(n))
 check('every slider 2..56 has exactly one control', sl == list(range(2, 57)))
 bad = [int(ip.mem[C + i * S + F['C_SL']]) for i in range(n)
@@ -232,18 +232,18 @@ h.block(BL)
 # Sliders are drawn above the @gfx canvas by REAPER, so a visible one pushes the
 # GUI down the window. Everything the panel draws must carry the '-' hide prefix.
 import re as _re
-_hdr = open(os.path.join(HERE, os.pardir, 'Granumid.jsfx')).read()
+_hdr = open(os.path.join(HERE, os.pardir, 'Midular.jsfx')).read()
 _shown = [int(m.group(1)) for m in
           _re.finditer(r'^slider(\d+):.*>(?!-)', _hdr, _re.M)]
 check('every panel slider is hidden from the plug-in UI', not _shown,
       'visible: %s' % _shown)
 
 for page in range(1, 6):
-    ip.g['gm_page'] = float(page)
+    ip.g['md_page'] = float(page)
     h.gfx()
 check('all five panel pages draw', True)
 
-ip.g['gm_page'] = 1.0
+ip.g['md_page'] = 1.0
 knob = next(i for i in range(n) if int(ip.mem[C + i * S + F['C_SL']]) == 3)
 x, y = ip.mem[C + knob * S + F['C_X']] + 40, ip.mem[C + knob * S + F['C_Y']] + 40
 before = ip.g['slider3']
@@ -260,15 +260,15 @@ check('clicking a toggle flips it', ip.g['slider13'] == 1)
 
 ip.g.update(mouse_x=14.0 + 3 * 180 + 10, mouse_y=ip.g['TB_Y'] + 5, mouse_cap=1.0); h.gfx()
 ip.g['mouse_cap'] = 0.0; h.gfx()
-check('clicking a tab changes page', ip.g['gm_page'] == 4)
+check('clicking a tab changes page', ip.g['md_page'] == 4)
 
-n0 = ip.g['gm_nmark']
+n0 = ip.g['md_nmark']
 ip.g.update(mouse_x=ip.g['RL_X'] + 400, mouse_y=ip.g['RL_Y'] + 40, mouse_cap=5.0)
 h.gfx(); ip.g['mouse_cap'] = 0.0; h.gfx()
-added = ip.g['gm_nmark']
+added = ip.g['md_nmark']
 ip.g['mouse_cap'] = 2.0; h.gfx(); ip.g['mouse_cap'] = 0.0; h.gfx()
 check('ctrl-click adds a marker, right-click removes it',
-      added == n0 + 1 and ip.g['gm_nmark'] == n0 and ip.g['gm_mark_edited'] == 1)
+      added == n0 + 1 and ip.g['md_nmark'] == n0 and ip.g['md_mark_edited'] == 1)
 
 print('\n%d passed, %d failed' % (_state['pass'], _state['fail']))
 sys.exit(1 if _state['fail'] else 0)

@@ -1,5 +1,5 @@
 """A small EEL2 (JSFX) interpreter - enough of the language to execute and test
-Granumid's engine outside REAPER."""
+Midular's engine outside REAPER."""
 import math, re, sys
 
 # ------------------------------------------------------------------ tokenizer

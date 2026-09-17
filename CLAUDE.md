@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Working notes for Granumid, a MIDI sampler written in JSFX (EEL2) for REAPER.
+Working notes for Midular, a MIDI sampler written in JSFX (EEL2) for REAPER.
 `README.md` documents the plug-in for users; this file is the stuff you need
 before changing the code.
 
@@ -12,7 +12,7 @@ inspect the MIDI that comes out. **Run both suites after any change** — they a
 the only verification available without the DAW.
 
 ```
-python3 tests/test_granumid.py     # 54 checks: engine, modes, slicing, env, filter, UI
+python3 tests/test_midular.py     # 54 checks: engine, modes, slicing, env, filter, UI
 lua5.4  tests/test_import.lua      # 18 checks: the importer's SMF reader
 ```
 
@@ -35,9 +35,9 @@ several of them are not obvious.
 **Language**
 
 - **No recursion.** A function may only call functions declared *before* it.
-  This is why `import` order in `Granumid.jsfx` is core → engine → ui, and why
-  e.g. `gm_voice_kill` is declared above `gm_voice_release`. Sorting and binary
-  search are iterative for the same reason (`gm_heapsort`, `gm_find_ev`).
+  This is why `import` order in `Midular.jsfx` is core → engine → ui, and why
+  e.g. `md_voice_kill` is declared above `md_voice_release`. Sorting and binary
+  search are iterative for the same reason (`md_heapsort`, `md_find_ev`).
 - **No scientific notation.** `1.0e-9` lexes as the number `1.0` followed by the
   identifier `e`, and REAPER rejects it: `syntax error: '... 1.0 <!> e-9'`.
   Write every constant out in full (`0.000000001`). This shipped once, in 45
@@ -47,16 +47,16 @@ several of them are not obvious.
   a promise about the lexer — use `$'b'`.
 - **`%` is integer-only.** It converts the absolute values of both operands to
   integers. Never use it for float modulo — wrap by hand:
-  `x = x - floor((x - a) / L) * L` (see `gm_grain_spawn`).
+  `x = x - floor((x - a) / L) * L` (see `md_grain_spawn`).
 - **`==` is fuzzy** (equal within 1e-5), and conditionals treat any value with
   magnitude below 1e-5 as false. Use `===` when you need exactness.
 - **Imported files must only *define functions* in their `@init`.** Statements
   placed there are not guaranteed to run when the importing file has its own
-  `@init`. All initialisation happens in `Granumid.jsfx`'s `@init`, which calls
-  `gm_init_consts()` / `gm_ui_consts()` / `gm_build_ui()` / `gm_reset_state()`.
+  `@init`. All initialisation happens in `Midular.jsfx`'s `@init`, which calls
+  `md_init_consts()` / `md_ui_consts()` / `md_build_ui()` / `md_reset_state()`.
 - `sliderN:name=default<...>` variable-name syntax would break `slider(i)`
   access, which the table-driven GUI depends on. That is why sliders are plain
-  `sliderN` and `gm_apply_params()` fans them out into named globals by hand.
+  `sliderN` and `md_apply_params()` fans them out into named globals by hand.
 - **A `@gfx` canvas does not replace the sliders — REAPER stacks the sliders
   above it.** With 55 of them the canvas ends up far below the fold, which looks
   exactly like "the GUI isn't there". Every slider the panel draws therefore
@@ -73,7 +73,7 @@ several of them are not obvious.
   files via `file_riff`, numeric tokens from `.txt`, and a `file_string` that is
   only documented as binary-safe inside `@serialize`. Hence: no SMF parsing in
   JSFX, and the `.txt` token format in `docs/FORMAT.md`.
-- A file slider (`slider1:/granumid:default.txt:Source File`) browses
+- A file slider (`slider1:/midular:default.txt:Source File`) browses
   `<REAPER resource path>/Data/<dir>` and lists only `.wav`, `.txt`, `.ogg` and
   `.raw`. The format had to be one of those; `.txt` is the readable one.
 - A `.txt` opened with `file_open()` tokenises into numbers separated by commas
@@ -83,7 +83,7 @@ several of them are not obvious.
   `sliderN` token at the call site.** The compiler special-cases it; you cannot
   pass the value through a variable or a function parameter. That is why the
   file is opened inline in `@block` rather than inside a loader function.
-- `gm_load_handle()` reads exactly `noteCount` records from the header instead of
+- `md_load_handle()` reads exactly `noteCount` records from the header instead of
   relying on EOF detection, because text-mode `file_avail()` semantics at the
   last token are ambiguous in the docs.
 
@@ -92,20 +92,20 @@ several of them are not obvious.
 - `ext_noinit = 1` stops `@init` running on every transport start. Combined with
   a **non-empty `@serialize`** (which prevents memory being re-zeroed), the
   loaded phrase survives playback starts. Both are required; don't remove either.
-- `@serialize` may run before `@init`, so it calls `gm_init_consts()` first —
+- `@serialize` may run before `@init`, so it calls `md_init_consts()` first —
   otherwise the memory-map constants are 0 and it would write over the note
   buffer at address 0.
 - **MIDI processing belongs in `@block`**, with sample offsets inside the block.
   There is no `@sample` section and there shouldn't be.
 - **`tempo`, `beat_position`, `play_state` and `ts_num`/`ts_denom` are not valid
-  in `@gfx`.** Cache anything the UI needs during `@block` — `gm_ratio` exists
-  purely because the status line used to call `gm_warp_ratio()` from `@gfx`.
+  in `@gfx`.** Cache anything the UI needs during `@block` — `md_ratio` exists
+  purely because the status line used to call `md_warp_ratio()` from `@gfx`.
 - `@gfx` runs on a different thread from audio. UI writes to shared memory
   (markers, sliders) are racy by design; keep them small and idempotent.
 
 ## ReaScript API (verified against the v7.79 reference)
 
-Every `reaper.*` call in `Scripts/granumid_import.lua` has been checked against
+Every `reaper.*` call in `Scripts/midular_import.lua` has been checked against
 the official signatures — return counts and argument order are correct as
 written. The ones worth remembering because they are easy to get wrong:
 
@@ -122,7 +122,7 @@ written. The ones worth remembering because they are easy to get wrong:
 
 ## Architecture invariants
 
-- **One absolute sample clock.** `gm_now` advances by `samplesblock` each block;
+- **One absolute sample clock.** `md_now` advances by `samplesblock` each block;
   everything (voice starts, note-offs, grain cycles, quantised triggers) is
   scheduled in absolute samples and converted to a block offset only at
   `midisend` time.
@@ -130,20 +130,20 @@ written. The ones worth remembering because they are easy to get wrong:
   walks source time; reverse walks `srclen - t`. Two pre-sorted index arrays
   (`ORD_FWD`/`KEY_FWD` and `ORD_REV`/`KEY_REV`) let both directions use the same
   monotonically increasing scan, so note lengths survive and ping-pong is just a
-  segment mirror plus a re-seek (`gm_stream_end`).
+  segment mirror plus a re-seek (`md_stream_end`).
 - **Stream pool indices are fixed:** voice `i` owns stream `i`; grain `g` owns
   stream `MAX_VOICES + g`. Voices reserve a *contiguous* run of grain slots
-  (`gm_grain_reserve`), shrinking the request if the pool is busy.
+  (`md_grain_reserve`), shrinking the request if the pool is busy.
 - **Output notes are keyed by `chan*128 + pitch`.** A pair can only sound once at
-  a time in MIDI, so `gm_note_on` emits the previous note-off first. Never emit a
+  a time in MIDI, so `md_note_on` emits the previous note-off first. Never emit a
   note-on you cannot later turn off: if the 512-slot pool is full the note is
   dropped deliberately.
 - **Parameters fan out in `@block`, not `@slider`.** The GUI writes sliders
   directly, and the host does not reliably re-run `@slider` for those writes.
-  `@slider` only sets `gm_slice_dirty`.
+  `@slider` only sets `md_slice_dirty`.
 - Slice rebuilding is guarded by a hash of everything it depends on
-  (`gm_apply_params`), so it is not recomputed every block.
-- The memory map is one place: `gm_init_consts()` in `granumid_core.jsfx-inc`.
+  (`md_apply_params`), so it is not recomputed every block.
+- The memory map is one place: `md_init_consts()` in `midular_core.jsfx-inc`.
   Change offsets there and nowhere else, and mind the `MAX_*` ceilings
   (32768 notes, 256 markers, 128 slices, 16 voices, 256 grains, 512 sounding).
 
@@ -151,11 +151,11 @@ written. The ones worth remembering because they are easy to get wrong:
 
 A slider lives in two places that must agree:
 
-1. the `sliderN:` declaration in `Granumid.jsfx`
-2. a matching `gm_ctl_cell(...)` in `gm_build_ui()`, which repeats the default,
+1. the `sliderN:` declaration in `Midular.jsfx`
+2. a matching `md_ctl_cell(...)` in `md_build_ui()`, which repeats the default,
    min, max and step so the knob can map its range
 
-`gm_apply_params()` then needs a line to read it. The UI test asserts that every
+`md_apply_params()` then needs a line to read it. The UI test asserts that every
 slider from 2 upwards has exactly one control, that control defaults match the
 declarations, that nothing falls outside the window and that no two controls
 share a cell — so a mismatch fails the suite rather than shipping.
@@ -165,15 +165,15 @@ share a cell — so a mismatch fails the suite rather than shipping.
 Confirmed working in REAPER 7 on macOS:
 
 - it compiles, and `import <name>.jsfx-inc` resolves from the plug-in's own
-  folder with all four files side by side in `Effects/Granumid/`
+  folder with all four files side by side in `Effects/Midular/`
 - all 55 parameters parse with the right defaults and enum labels
-- the file slider finds `Data/granumid/default.txt`
+- the file slider finds `Data/midular/default.txt`
 - the `@gfx` panel renders once the sliders are hidden
 - idle cost is negligible (0.03% CPU)
 
 Still unverified, in rough order of likelihood:
 
-1. The file-list enumeration in `gm_scan_files()`, which steps `slider1` and
+1. The file-list enumeration in `md_scan_files()`, which steps `slider1` and
    reads back `strcpy_fromslider` to discover the available phrases. `slider1`
    stays visible until this is confirmed, so there is always a way to pick a
    phrase.
@@ -202,10 +202,10 @@ there is no error message, it is the second one.
 Discussed and chosen over rewriting as VST3/CLAP:
 
 1. **Serialize the phrase itself**, not just the markers, so projects are
-   self-contained and don't depend on a file in `Data/granumid/` on whatever
+   self-contained and don't depend on a file in `Data/midular/` on whatever
    machine opens them.
-2. **Have `granumid_import.lua` select the phrase it just wrote** in the focused
-   Granumid instance. The API reference confirms this is possible and shows a
+2. **Have `midular_import.lua` select the phrase it just wrote** in the focused
+   Midular instance. The API reference confirms this is possible and shows a
    better route than the one first sketched:
 
    - `TrackFX_SetNamedConfigParm`'s `FILE` / `FILEx` values are **RS5k only** —
@@ -220,7 +220,7 @@ Discussed and chosen over rewriting as VST3/CLAP:
    - Find the instance with `GetTouchedOrFocusedFX(1)` (`GetFocusedFX` is
      deprecated), then confirm with `TrackFX_GetFXName` before touching
      anything; fall back to scanning `CountTracks`/`TrackFX_GetCount` when no
-     Granumid window is focused.
+     Midular window is focused.
 
 ## Conventions
 
