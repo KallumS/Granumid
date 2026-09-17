@@ -1,8 +1,8 @@
-# Granumid
+# Midular
 
 A MIDI sampler for REAPER, written in JSFX.
 
-Granumid treats a MIDI phrase the way Ableton's Simpler or Bitwig's Sampler treat
+Midular treats a MIDI phrase the way Ableton's Simpler or Bitwig's Sampler treat
 an audio file: you load a source, map it across the keyboard, and shape it with a
 filter, an envelope, warping and looping. The difference is that every stage
 operates on **notes** rather than samples — nothing here renders audio, it emits
@@ -16,33 +16,33 @@ MIDI in ──▶ trigger ──▶ [ mode engine ] ──▶ [ note filter ] �
 
 ## Install
 
-1. Copy these four files into `<REAPER resource path>/Effects/Granumid/`
+1. Copy these four files into `<REAPER resource path>/Effects/Midular/`
    (Options → Show REAPER resource path):
 
    ```
-   Granumid.jsfx
-   granumid_core.jsfx-inc
-   granumid_engine.jsfx-inc
-   granumid_ui.jsfx-inc
+   Midular.jsfx
+   midular_core.jsfx-inc
+   midular_engine.jsfx-inc
+   midular_ui.jsfx-inc
    ```
 
    They must stay in the same folder — the `.jsfx-inc` files are imported by name.
 
-2. Copy `Data/granumid/` into `<REAPER resource path>/Data/` so the folder
-   `<resource>/Data/granumid/` exists and contains `default.txt`. This is the
+2. Copy `Data/midular/` into `<REAPER resource path>/Data/` so the folder
+   `<resource>/Data/midular/` exists and contains `default.txt`. This is the
    folder the **Source File** selector browses.
 
-3. Copy `Scripts/granumid_import.lua` anywhere and add it with
+3. Copy `Scripts/midular_import.lua` anywhere and add it with
    Actions → Show action list → New action → Load ReaScript.
 
-4. Add **JS: Granumid** to a track, ahead of whatever instrument should play the
+4. Add **JS: Midular** to a track, ahead of whatever instrument should play the
    notes.
 
 ## Importing a phrase
 
 JSFX cannot read `.mid` files directly, so phrases are converted once into a
 small text format that JSFX reads natively (see [docs/FORMAT.md](docs/FORMAT.md)).
-`granumid_import.lua` does the conversion two ways:
+`midular_import.lua` does the conversion two ways:
 
 * **Select one or more MIDI items** and run the action — it captures those items,
   including take markers and any project markers inside them.
@@ -51,7 +51,7 @@ small text format that JSFX reads natively (see [docs/FORMAT.md](docs/FORMAT.md)
   events, SMPTE or ticks-per-quarter division, marker meta events).
 
 Either way you are asked for a name, and the result lands in
-`<resource>/Data/granumid/`. Click Granumid's file button to pick it up.
+`<resource>/Data/midular/`. Click Midular's file button to pick it up.
 
 ## Modes
 
@@ -146,7 +146,7 @@ real `.jsfx` and its imports, runs the sections, and inspects the MIDI that come
 out.
 
 ```
-python3 tests/test_granumid.py     # engine, modes, slicing, envelope, filter, UI
+python3 tests/test_midular.py     # engine, modes, slicing, envelope, filter, UI
 lua5.4  tests/test_import.lua      # the importer's Standard MIDI File reader
 ```
 
@@ -156,12 +156,12 @@ cover.
 ## Repository layout
 
 ```
-Granumid.jsfx               plug-in: description, sliders, sections
-granumid_core.jsfx-inc      memory map, sorting, source loading, slice analysis
-granumid_engine.jsfx-inc    note pool, envelope, filter, streams, voices, grains
-granumid_ui.jsfx-inc        @gfx interface
-Scripts/granumid_import.lua ReaScript importer (MIDI items or .mid files)
-Data/granumid/default.txt   demo phrase, installed into <resource>/Data/granumid/
+Midular.jsfx               plug-in: description, sliders, sections
+midular_core.jsfx-inc      memory map, sorting, source loading, slice analysis
+midular_engine.jsfx-inc    note pool, envelope, filter, streams, voices, grains
+midular_ui.jsfx-inc        @gfx interface
+Scripts/midular_import.lua ReaScript importer (MIDI items or .mid files)
+Data/midular/default.txt   demo phrase, installed into <resource>/Data/midular/
 docs/FORMAT.md              source file format
 tests/                      EEL2 interpreter and test suites (development only)
 ```

@@ -1,22 +1,22 @@
-// granumid_core.jsfx-inc
-// Granumid - MIDI sampler for REAPER.
+// midular_core.jsfx-inc
+// Midular - MIDI sampler for REAPER.
 // Core layer: memory map, math helpers, source-data loading and slice analysis.
 //
 // This file only defines functions (per JSFX import rules, statements placed in
 // an imported @init section are not guaranteed to run).  All of the actual
-// initialisation happens in Granumid.jsfx.
+// initialisation happens in Midular.jsfx.
 //
-// Copyright (C) 2026  Granumid contributors.  Licensed under the GPL v3.
+// Copyright (C) 2026  Midular contributors.  Licensed under the GPL v3.
 
 @init
 
 // ---------------------------------------------------------------------------
 // Memory map / constants
 // ---------------------------------------------------------------------------
-function gm_init_consts()
+function md_init_consts()
 (
-  GM_MAGIC      = 7473;       // magic number expected as first record of a .txt source
-  GM_FMT_VER    = 1;
+  MD_MAGIC      = 7473;       // magic number expected as first record of a .txt source
+  MD_FMT_VER    = 1;
 
   MAX_NOTES     = 32768;
   NOTE_STRIDE   = 5;          // start(beats), len(beats), pitch, velocity, channel
@@ -104,28 +104,28 @@ function gm_init_consts()
 
   SCRATCH       = 390000;     // MAX_NOTES scratch for sorting keys
 
-  gm_rng        = 12345;
+  md_rng        = 12345;
 );
 
 // ---------------------------------------------------------------------------
 // Small helpers
 // ---------------------------------------------------------------------------
-function gm_clamp(x, lo, hi) ( x < lo ? lo : (x > hi ? hi : x) );
+function md_clamp(x, lo, hi) ( x < lo ? lo : (x > hi ? hi : x) );
 
 // Park-Miller LCG whose state lives in memory so every voice/grain can own one.
-function gm_rndm(p)
+function md_rndm(p)
 (
   p[0] < 1 ? p[0] = 1;
   p[0] = (p[0] * 16807) % 2147483647;
-  p[0] * 4.656612875e-10;
+  p[0] * 0.0000000004656612875;
 );
 
-function gm_rnd_bi(p) ( gm_rndm(p) * 2 - 1 );
+function md_rnd_bi(p) ( md_rndm(p) * 2 - 1 );
 
 // ---------------------------------------------------------------------------
 // Sorting (iterative heapsort - EEL2 forbids recursion)
 // ---------------------------------------------------------------------------
-function gm_sift(idx, key, root, n) local(child, tmp)
+function md_sift(idx, key, root, n) local(child, tmp)
 (
   while (root * 2 + 1 < n) (
     child = root * 2 + 1;
@@ -139,22 +139,22 @@ function gm_sift(idx, key, root, n) local(child, tmp)
   );
 );
 
-function gm_heapsort(idx, key, n) local(i, tmp)
+function md_heapsort(idx, key, n) local(i, tmp)
 (
   n > 1 ? (
     i = (n >> 1) - 1;
-    while (i >= 0) ( gm_sift(idx, key, i, n); i -= 1; );
+    while (i >= 0) ( md_sift(idx, key, i, n); i -= 1; );
     i = n - 1;
     while (i > 0) (
       tmp = idx[0]; idx[0] = idx[i]; idx[i] = tmp;
-      gm_sift(idx, key, 0, i);
+      md_sift(idx, key, 0, i);
       i -= 1;
     );
   );
 );
 
 // First index in ord[] whose key is >= pos.  Plain binary search.
-function gm_find_ev(ord, key, n, pos) local(lo, hi, mid)
+function md_find_ev(ord, key, n, pos) local(lo, hi, mid)
 (
   lo = 0; hi = n;
   while (lo < hi) (
@@ -167,114 +167,114 @@ function gm_find_ev(ord, key, n, pos) local(lo, hi, mid)
 // ---------------------------------------------------------------------------
 // Source data
 // ---------------------------------------------------------------------------
-function gm_build_order() local(i, np)
+function md_build_order() local(i, np)
 (
   i = 0;
-  while (i < gm_src_n) (
+  while (i < md_src_n) (
     np = BUF_NOTES + i * NOTE_STRIDE;
     KEY_FWD[i] = np[0];
-    KEY_REV[i] = gm_src_len - (np[0] + np[1]);
+    KEY_REV[i] = md_src_len - (np[0] + np[1]);
     ORD_FWD[i] = i;
     ORD_REV[i] = i;
     i += 1;
   );
-  gm_heapsort(ORD_FWD, KEY_FWD, gm_src_n);
-  gm_heapsort(ORD_REV, KEY_REV, gm_src_n);
+  md_heapsort(ORD_FWD, KEY_FWD, md_src_n);
+  md_heapsort(ORD_REV, KEY_REV, md_src_n);
 );
 
-function gm_add_note(st, ln, pit, vel, chan) local(np)
+function md_add_note(st, ln, pit, vel, chan) local(np)
 (
-  gm_src_n < MAX_NOTES ? (
-    np = BUF_NOTES + gm_src_n * NOTE_STRIDE;
+  md_src_n < MAX_NOTES ? (
+    np = BUF_NOTES + md_src_n * NOTE_STRIDE;
     np[0] = st;
     np[1] = max(ln, 0.001);
-    np[2] = gm_clamp(pit | 0, 0, 127);
-    np[3] = gm_clamp(vel | 0, 1, 127);
-    np[4] = gm_clamp(chan | 0, 0, 15);
-    gm_src_n += 1;
+    np[2] = md_clamp(pit | 0, 0, 127);
+    np[3] = md_clamp(vel | 0, 1, 127);
+    np[4] = md_clamp(chan | 0, 0, 15);
+    md_src_n += 1;
   );
 );
 
 // Built-in fallback pattern so the plug-in is usable before anything is imported.
-function gm_make_default() local(i, p)
+function md_make_default() local(i, p)
 (
-  gm_src_n = 0;
-  gm_nmark = 0;
-  gm_src_len = 4;
-  gm_src_tempo = 120;
-  gm_src_tsnum = 4;
-  gm_src_tsden = 4;
-  strcpy(#gm_name, "(built-in pattern)");
+  md_src_n = 0;
+  md_nmark = 0;
+  md_src_len = 4;
+  md_src_tempo = 120;
+  md_src_tsnum = 4;
+  md_src_tsden = 4;
+  strcpy(#md_name, "(built-in pattern)");
   i = 0;
   while (i < 16) (
     p = 60 + (i % 4 == 0 ? 0 : (i % 4 == 1 ? 4 : (i % 4 == 2 ? 7 : 11)));
-    gm_add_note(i * 0.25, 0.22, p, 100 - (i % 4) * 8, 0);
-    i % 4 == 0 ? gm_add_note(i * 0.25, 0.45, p - 24, 110, 0);
+    md_add_note(i * 0.25, 0.22, p, 100 - (i % 4) * 8, 0);
+    i % 4 == 0 ? md_add_note(i * 0.25, 0.45, p - 24, 110, 0);
     i += 1;
   );
-  gm_build_order();
+  md_build_order();
 );
 
-function gm_rd(h)
+function md_rd(h)
 (
-  file_avail(h) > 0 ? ( gm_rd_ok = 1; file_var(h, gm_rd_v); gm_rd_v ) : ( gm_rd_ok = 0; 0 );
+  file_avail(h) > 0 ? ( md_rd_ok = 1; file_var(h, md_rd_v); md_rd_v ) : ( md_rd_ok = 0; 0 );
 );
 
-// Reads a Granumid source file (see docs/FORMAT.md).  Returns 1 on success.
-function gm_load_handle(h)
+// Reads a Midular source file (see docs/FORMAT.md).  Returns 1 on success.
+function md_load_handle(h)
   local(magic, ver, cnt, nmark, i, st, ln, pit, vel, chn, ok)
 (
   ok = 0;
   h >= 0 ? (
-    magic = gm_rd(h);
-    ver   = gm_rd(h);
-    (gm_rd_ok && magic == GM_MAGIC && ver >= 1 && ver <= GM_FMT_VER) ? (
-      gm_src_n     = 0;
-      gm_nmark     = 0;
-      gm_src_len   = gm_rd(h);
-      cnt          = gm_rd(h) | 0;
-      gm_src_tempo = gm_rd(h);
-      gm_src_tsnum = gm_rd(h);
-      gm_src_tsden = gm_rd(h);
-      nmark        = gm_rd(h) | 0;
-      gm_rd(h); gm_rd(h); gm_rd(h); gm_rd(h);   // reserved
+    magic = md_rd(h);
+    ver   = md_rd(h);
+    (md_rd_ok && magic == MD_MAGIC && ver >= 1 && ver <= MD_FMT_VER) ? (
+      md_src_n     = 0;
+      md_nmark     = 0;
+      md_src_len   = md_rd(h);
+      cnt          = md_rd(h) | 0;
+      md_src_tempo = md_rd(h);
+      md_src_tsnum = md_rd(h);
+      md_src_tsden = md_rd(h);
+      nmark        = md_rd(h) | 0;
+      md_rd(h); md_rd(h); md_rd(h); md_rd(h);   // reserved
 
-      gm_src_tempo <= 0 ? gm_src_tempo = 120;
-      gm_src_tsnum <= 0 ? gm_src_tsnum = 4;
-      gm_src_tsden <= 0 ? gm_src_tsden = 4;
+      md_src_tempo <= 0 ? md_src_tempo = 120;
+      md_src_tsnum <= 0 ? md_src_tsnum = 4;
+      md_src_tsden <= 0 ? md_src_tsden = 4;
 
-      cnt = gm_clamp(cnt, 0, MAX_NOTES);
+      cnt = md_clamp(cnt, 0, MAX_NOTES);
       i = 0;
-      while (i < cnt && gm_rd_ok) (
-        st  = gm_rd(h);
-        ln  = gm_rd(h);
-        pit = gm_rd(h);
-        vel = gm_rd(h);
-        chn = gm_rd(h);
-        gm_rd_ok ? gm_add_note(st, ln, pit, vel, chn);
+      while (i < cnt && md_rd_ok) (
+        st  = md_rd(h);
+        ln  = md_rd(h);
+        pit = md_rd(h);
+        vel = md_rd(h);
+        chn = md_rd(h);
+        md_rd_ok ? md_add_note(st, ln, pit, vel, chn);
         i += 1;
       );
 
-      nmark = gm_clamp(nmark, 0, MAX_MARKERS);
+      nmark = md_clamp(nmark, 0, MAX_MARKERS);
       i = 0;
-      while (i < nmark && gm_rd_ok) (
-        st = gm_rd(h);
-        gm_rd_ok ? ( MARKERS[gm_nmark] = st; gm_nmark += 1; );
+      while (i < nmark && md_rd_ok) (
+        st = md_rd(h);
+        md_rd_ok ? ( MARKERS[md_nmark] = st; md_nmark += 1; );
         i += 1;
       );
 
       // Fall back to the last note end if the header length is bogus.
-      gm_src_len <= 0 ? (
-        gm_src_len = 0;
+      md_src_len <= 0 ? (
+        md_src_len = 0;
         i = 0;
-        while (i < gm_src_n) (
-          gm_src_len = max(gm_src_len, BUF_NOTES[i * NOTE_STRIDE] + BUF_NOTES[i * NOTE_STRIDE + 1]);
+        while (i < md_src_n) (
+          md_src_len = max(md_src_len, BUF_NOTES[i * NOTE_STRIDE] + BUF_NOTES[i * NOTE_STRIDE + 1]);
           i += 1;
         );
-        gm_src_len = max(ceil(gm_src_len), 1);
+        md_src_len = max(ceil(md_src_len), 1);
       );
 
-      gm_src_n > 0 ? ( gm_build_order(); ok = 1; );
+      md_src_n > 0 ? ( md_build_order(); ok = 1; );
     );
   );
   ok;
@@ -283,32 +283,32 @@ function gm_load_handle(h)
 // ---------------------------------------------------------------------------
 // Slice analysis
 // ---------------------------------------------------------------------------
-function gm_slice_push(a, b)
+function md_slice_push(a, b)
 (
-  (gm_nslices < MAX_SLICES && b - a > 1.0e-6) ? (
-    SLICES[gm_nslices * 2]     = a;
-    SLICES[gm_nslices * 2 + 1] = b;
-    gm_nslices += 1;
+  (md_nslices < MAX_SLICES && b - a > 0.000001) ? (
+    SLICES[md_nslices * 2]     = a;
+    SLICES[md_nslices * 2 + 1] = b;
+    md_nslices += 1;
   );
 );
 
 // Equal divisions of [a,b].
-function gm_slice_divisions(a, b, n) local(i, w)
+function md_slice_divisions(a, b, n) local(i, w)
 (
-  n = gm_clamp(n | 0, 1, MAX_SLICES);
+  n = md_clamp(n | 0, 1, MAX_SLICES);
   w = (b - a) / n;
   i = 0;
-  while (i < n) ( gm_slice_push(a + i * w, a + (i + 1) * w); i += 1; );
+  while (i < n) ( md_slice_push(a + i * w, a + (i + 1) * w); i += 1; );
 );
 
 // Fixed musical grid across [a,b]; the final partial slice is kept.
-function gm_slice_grid(a, b, g) local(t, nx)
+function md_slice_grid(a, b, g) local(t, nx)
 (
   g <= 0 ? g = 1;
   t = a;
-  while (t < b - 1.0e-6 && gm_nslices < MAX_SLICES) (
+  while (t < b - 0.000001 && md_nslices < MAX_SLICES) (
     nx = min(t + g, b);
-    gm_slice_push(t, nx);
+    md_slice_push(t, nx);
     t = nx;
   );
 );
@@ -316,46 +316,46 @@ function gm_slice_grid(a, b, g) local(t, nx)
 // Note onsets, clustered with a tolerance derived from the sensitivity control.
 // sens 0   -> coarse (1/4 note cluster, only strong onsets)
 // sens 100 -> fine   (every distinct note start becomes a slice)
-function gm_slice_onsets(a, b, sens) local(i, ni, k, tol, last, nn, minv, vel)
+function md_slice_onsets(a, b, sens) local(i, ni, k, tol, last, nn, minv, vel)
 (
   tol  = 0.5 * pow(0.02, sens / 100);          // 0.5 beat .. 0.01 beat
   minv = (1 - sens / 100) * 48;                // ignore quiet notes at low sensitivity
-  last = -1e18;
+  last = -1000000;
   nn   = 0;
   i    = 0;
-  while (i < gm_src_n && gm_nslices < MAX_SLICES) (
+  while (i < md_src_n && md_nslices < MAX_SLICES) (
     ni  = ORD_FWD[i];
     k   = KEY_FWD[ni];
     vel = BUF_NOTES[ni * NOTE_STRIDE + 3];
-    (k >= a - 1.0e-6 && k < b - 1.0e-6 && vel >= minv && k - last > tol) ? (
-      nn > 0 ? gm_slice_push(last, k) : (k > a + 1.0e-6 ? gm_slice_push(a, k));
+    (k >= a - 0.000001 && k < b - 0.000001 && vel >= minv && k - last > tol) ? (
+      nn > 0 ? md_slice_push(last, k) : (k > a + 0.000001 ? md_slice_push(a, k));
       last = k;
       nn  += 1;
     );
     i += 1;
   );
-  nn > 0 ? gm_slice_push(last, b) : gm_slice_push(a, b);
+  nn > 0 ? md_slice_push(last, b) : md_slice_push(a, b);
 );
 
 // New slice whenever the leading (highest) pitch of an onset group changes.
-function gm_slice_pitch(a, b, sens)
+function md_slice_pitch(a, b, sens)
   local(i, ni, k, p, tol, gstart, gtop, prevtop, last)
 (
   tol     = 0.5 * pow(0.02, sens / 100);
-  gstart  = -1e18;
+  gstart  = -1000000;
   gtop    = -1;
-  prevtop = -1e18;
+  prevtop = -1000000;
   last    = a;
   i       = 0;
-  while (i < gm_src_n && gm_nslices < MAX_SLICES) (
+  while (i < md_src_n && md_nslices < MAX_SLICES) (
     ni = ORD_FWD[i];
     k  = KEY_FWD[ni];
     p  = BUF_NOTES[ni * NOTE_STRIDE + 2];
-    (k >= a - 1.0e-6 && k < b - 1.0e-6) ? (
+    (k >= a - 0.000001 && k < b - 0.000001) ? (
       (gtop < 0 || k - gstart > tol) ? (
         // the previous onset group is complete - did its leading pitch change?
         (gtop >= 0 && gtop != prevtop) ? (
-          gstart > last + 1.0e-6 ? ( gm_slice_push(last, gstart); last = gstart; );
+          gstart > last + 0.000001 ? ( md_slice_push(last, gstart); last = gstart; );
           prevtop = gtop;
         );
         gstart = k;
@@ -366,71 +366,71 @@ function gm_slice_pitch(a, b, sens)
     );
     i += 1;
   );
-  (gtop >= 0 && gtop != prevtop && gstart > last + 1.0e-6) ? ( gm_slice_push(last, gstart); last = gstart; );
-  gm_slice_push(last, b);
-  gm_nslices == 0 ? gm_slice_push(a, b);
+  (gtop >= 0 && gtop != prevtop && gstart > last + 0.000001) ? ( md_slice_push(last, gstart); last = gstart; );
+  md_slice_push(last, b);
+  md_nslices == 0 ? md_slice_push(a, b);
 );
 
 // User markers (imported with the file or placed in the editor).
-function gm_slice_markers(a, b) local(i, t, last, n)
+function md_slice_markers(a, b) local(i, t, last, n)
 (
-  // markers are kept sorted by gm_marker_add()
+  // markers are kept sorted by md_marker_add()
   last = a;
   n    = 0;
   i    = 0;
-  while (i < gm_nmark && gm_nslices < MAX_SLICES) (
+  while (i < md_nmark && md_nslices < MAX_SLICES) (
     t = MARKERS[i];
-    (t > a + 1.0e-6 && t < b - 1.0e-6) ? ( gm_slice_push(last, t); last = t; n += 1; );
+    (t > a + 0.000001 && t < b - 0.000001) ? ( md_slice_push(last, t); last = t; n += 1; );
     i += 1;
   );
-  gm_slice_push(last, b);
+  md_slice_push(last, b);
 );
 
-function gm_build_slices(a, b, method, div, grid, sens) local(g)
+function md_build_slices(a, b, method, div, grid, sens) local(g)
 (
-  gm_nslices = 0;
-  b - a < 1.0e-4 ? b = a + 1.0e-4;
-  method == 0 ? gm_slice_divisions(a, b, div) :
+  md_nslices = 0;
+  b - a < 0.0001 ? b = a + 0.0001;
+  method == 0 ? md_slice_divisions(a, b, div) :
   method == 1 ? (
     g = grid == 0 ? 0.125 : grid == 1 ? 0.25 : grid == 2 ? 0.5 :
         grid == 3 ? 1     : grid == 4 ? 2    :
-        grid == 5 ? gm_src_tsnum * 4 / gm_src_tsden :
-                    gm_src_tsnum * 8 / gm_src_tsden;
-    gm_slice_grid(a, b, g);
+        grid == 5 ? md_src_tsnum * 4 / md_src_tsden :
+                    md_src_tsnum * 8 / md_src_tsden;
+    md_slice_grid(a, b, g);
   ) :
-  method == 2 ? gm_slice_onsets(a, b, sens) :
-  method == 3 ? gm_slice_pitch(a, b, sens) :
-                gm_slice_markers(a, b);
-  gm_nslices == 0 ? gm_slice_push(a, b);
+  method == 2 ? md_slice_onsets(a, b, sens) :
+  method == 3 ? md_slice_pitch(a, b, sens) :
+                md_slice_markers(a, b);
+  md_nslices == 0 ? md_slice_push(a, b);
 );
 
 // ---------------------------------------------------------------------------
 // Marker editing (used by the UI, persisted through @serialize)
 // ---------------------------------------------------------------------------
-function gm_marker_add(t) local(i, j)
+function md_marker_add(t) local(i, j)
 (
-  gm_nmark < MAX_MARKERS ? (
+  md_nmark < MAX_MARKERS ? (
     i = 0;
-    while (i < gm_nmark && MARKERS[i] < t) ( i += 1; );
-    j = gm_nmark;
+    while (i < md_nmark && MARKERS[i] < t) ( i += 1; );
+    j = md_nmark;
     while (j > i) ( MARKERS[j] = MARKERS[j - 1]; j -= 1; );
     MARKERS[i] = t;
-    gm_nmark += 1;
+    md_nmark += 1;
   );
 );
 
-function gm_marker_remove_near(t, tol) local(i, best, bd, d)
+function md_marker_remove_near(t, tol) local(i, best, bd, d)
 (
   best = -1; bd = tol;
   i = 0;
-  while (i < gm_nmark) (
+  while (i < md_nmark) (
     d = abs(MARKERS[i] - t);
     d < bd ? ( bd = d; best = i; );
     i += 1;
   );
   best >= 0 ? (
-    while (best < gm_nmark - 1) ( MARKERS[best] = MARKERS[best + 1]; best += 1; );
-    gm_nmark -= 1;
+    while (best < md_nmark - 1) ( MARKERS[best] = MARKERS[best + 1]; best += 1; );
+    md_nmark -= 1;
     1;
   ) : 0;
 );

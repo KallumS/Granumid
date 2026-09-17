@@ -1,5 +1,5 @@
 """A small EEL2 (JSFX) interpreter - enough of the language to execute and test
-Granumid's engine outside REAPER."""
+Midular's engine outside REAPER."""
 import math, re, sys
 
 # ------------------------------------------------------------------ tokenizer
@@ -64,8 +64,17 @@ def tokenize(src):
             raise SyntaxError(f'line {line}: bad $ escape')
         m = re.match(r'0[xX][0-9A-Fa-f]+', src[i:])
         if m: toks.append(Tok('num', float(int(m.group(0), 16), ), line)); i += m.end(); continue
-        m = re.match(r'(\d+\.\d*([eE][-+]?\d+)?|\.\d+([eE][-+]?\d+)?|\d+([eE][-+]?\d+)?)', src[i:])
-        if m: toks.append(Tok('num', float(m.group(0)), line)); i += m.end(); continue
+        m = re.match(r'(\d+\.\d*|\.\d+|\d+)', src[i:])
+        if m:
+            # EEL2 has NO scientific notation: "1.0e-9" lexes as the number 1.0
+            # followed by the identifier `e`, which REAPER rejects as a syntax
+            # error. Reproduce that here rather than silently accepting it.
+            if re.match(r'[eE][-+]?\d', src[i + m.end():]):
+                raise SyntaxError(
+                    'line %d: EEL2 has no scientific notation (%s%s) - '
+                    'write the number out in full' %
+                    (line, m.group(0), src[i + m.end():i + m.end() + 4]))
+            toks.append(Tok('num', float(m.group(0)), line)); i += m.end(); continue
         m = re.match(r'[A-Za-z_][A-Za-z0-9_.]*', src[i:])
         if m:
             w = m.group(0)
@@ -103,8 +112,11 @@ class Parser:
             if self.at('kw', 'function'):
                 stmts.append(self.parse_func())
             else:
-                e = self.parse_assign()
-                stmts.append(e)
+                stmts.append(self.parse_assign())
+                # EEL2 requires ';' between statements; only the last may omit it.
+                if not self.at('op', ';') and not self.at('eof') and not self.at('kw', 'function'):
+                    t = self.peek()
+                    raise SyntaxError("line %d: missing ';' before %s:%r" % (t.line, t.k, t.v))
                 while self.eat('op', ';'): pass
         return ('block', stmts)
 

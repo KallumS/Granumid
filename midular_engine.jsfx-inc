@@ -1,12 +1,12 @@
-// granumid_engine.jsfx-inc
-// Granumid - MIDI sampler for REAPER.
+// midular_engine.jsfx-inc
+// Midular - MIDI sampler for REAPER.
 // Playback engine: output note pool, envelope, note filter, streams, voices,
 // slices and the granular cloud.
 //
-// Everything is scheduled on an absolute sample clock (gm_now), so note-ons and
+// Everything is scheduled on an absolute sample clock (md_now), so note-ons and
 // note-offs are emitted with sample-accurate offsets from @block.
 //
-// Copyright (C) 2026  Granumid contributors.  Licensed under the GPL v3.
+// Copyright (C) 2026  Midular contributors.  Licensed under the GPL v3.
 
 @init
 
@@ -17,12 +17,12 @@
 // pool is keyed by chan*128+pitch and re-triggering an already sounding note
 // emits its note-off first.
 // ---------------------------------------------------------------------------
-function gm_off_at(slot, off) local(sp, key)
+function md_off_at(slot, off) local(sp, key)
 (
   sp = SOUND + slot * N_STRIDE;
   sp[N_USED] ? (
     key = sp[N_KEY];
-    midisend(gm_clamp(off | 0, 0, max(gm_blk_len - 1, 0)), $x80 + (key >> 7), key & 127, 0);
+    midisend(md_clamp(off | 0, 0, max(md_blk_len - 1, 0)), $x80 + (key >> 7), key & 127, 0);
     SOUNDMAP[key] = 0;
     sp[N_USED]  = 0;
     sp[N_KEY]   = -1;
@@ -30,7 +30,7 @@ function gm_off_at(slot, off) local(sp, key)
   );
 );
 
-function gm_sound_alloc() local(i, slot)
+function md_sound_alloc() local(i, slot)
 (
   slot = -1;
   i = 0;
@@ -40,13 +40,13 @@ function gm_sound_alloc() local(i, slot)
   slot;
 );
 
-function gm_note_on(chan, pitch, vel, tsmp, dursmp, owner) local(key, slot, sp, o)
+function md_note_on(chan, pitch, vel, tsmp, dursmp, owner) local(key, slot, sp, o)
 (
   key = chan * 128 + pitch;
-  o   = gm_clamp((tsmp - gm_blk_start) | 0, 0, max(gm_blk_len - 1, 0));
+  o   = md_clamp((tsmp - md_blk_start) | 0, 0, max(md_blk_len - 1, 0));
   slot = SOUNDMAP[key] - 1;
-  slot >= 0 ? gm_off_at(slot, o);
-  slot = gm_sound_alloc();
+  slot >= 0 ? md_off_at(slot, o);
+  slot = md_sound_alloc();
   slot >= 0 ? (
     sp = SOUND + slot * N_STRIDE;
     midisend(o, $x90 + chan, pitch, vel);
@@ -58,28 +58,28 @@ function gm_note_on(chan, pitch, vel, tsmp, dursmp, owner) local(key, slot, sp, 
   );
 );
 
-function gm_flush_offs() local(i, sp, e)
+function md_flush_offs() local(i, sp, e)
 (
-  e = gm_blk_start + gm_blk_len;
+  e = md_blk_start + md_blk_len;
   i = 0;
   while (i < MAX_SOUND) (
     sp = SOUND + i * N_STRIDE;
-    (sp[N_USED] && sp[N_OFF] < e) ? gm_off_at(i, sp[N_OFF] - gm_blk_start);
+    (sp[N_USED] && sp[N_OFF] < e) ? md_off_at(i, sp[N_OFF] - md_blk_start);
     i += 1;
   );
 );
 
-function gm_notes_off_owner(vi, tsmp) local(i, o)
+function md_notes_off_owner(vi, tsmp) local(i, o)
 (
-  o = tsmp - gm_blk_start;
+  o = tsmp - md_blk_start;
   i = 0;
   while (i < MAX_SOUND) (
-    (SOUND[i * N_STRIDE + N_USED] && SOUND[i * N_STRIDE + N_OWNER] == vi) ? gm_off_at(i, o);
+    (SOUND[i * N_STRIDE + N_USED] && SOUND[i * N_STRIDE + N_OWNER] == vi) ? md_off_at(i, o);
     i += 1;
   );
 );
 
-function gm_owner_notes(vi) local(i, n)
+function md_owner_notes(vi) local(i, n)
 (
   n = 0;
   i = 0;
@@ -90,16 +90,16 @@ function gm_owner_notes(vi) local(i, n)
   n;
 );
 
-function gm_all_notes_off(off) local(i)
+function md_all_notes_off(off) local(i)
 (
   i = 0;
-  while (i < MAX_SOUND) ( gm_off_at(i, off); i += 1; );
+  while (i < MAX_SOUND) ( md_off_at(i, off); i += 1; );
 );
 
 // ---------------------------------------------------------------------------
 // Amplitude envelope (sampled at note-on time - MIDI has no continuous level)
 // ---------------------------------------------------------------------------
-function gm_env_at(vp, tsmp) local(t, a, d, s, r, lv, c)
+function md_env_at(vp, tsmp) local(t, a, d, s, r, lv, c)
 (
   a = p_atk * 0.001 * srate;
   d = p_dec * 0.001 * srate;
@@ -115,7 +115,7 @@ function gm_env_at(vp, tsmp) local(t, a, d, s, r, lv, c)
     (d > 0 && (t - a) < d) ? lv = 1 + (s - 1) * ((t - a) / d) :
                              lv = s;
   );
-  lv = gm_clamp(lv, 0, 1);
+  lv = md_clamp(lv, 0, 1);
   c = p_envcurve;
   c > 0.001  ? lv = pow(lv, 1 + c * 3) :
   c < -0.001 ? lv = pow(lv, 1 / (1 - c * 3));
@@ -129,7 +129,7 @@ function gm_env_at(vp, tsmp) local(t, a, d, s, r, lv, c)
 // threshold are removed from the stream entirely; the rest are attenuated,
 // which is the MIDI equivalent of a filter slope.
 // ---------------------------------------------------------------------------
-function gm_filt_gain(pitch, key) local(cut, d, g, w, sl, rs)
+function md_filt_gain(pitch, key) local(cut, d, g, w, sl, rs)
 (
   p_fmode == 0 ? ( 1 ) : (
     cut = p_fcut + (key - p_root) * p_fkey * 0.01;
@@ -141,7 +141,7 @@ function gm_filt_gain(pitch, key) local(cut, d, g, w, sl, rs)
     p_fmode == 3 ? ( d = abs(pitch - cut) - w * 0.5 ) :
                    ( d = w * 0.5 - abs(pitch - cut) );
     g = d <= 0 ? 1 : 1 - d / sl;
-    g = gm_clamp(g, 0, 1);
+    g = md_clamp(g, 0, 1);
 
     rs = p_freso * 0.01;
     rs > 0 ? (
@@ -156,7 +156,7 @@ function gm_filt_gain(pitch, key) local(cut, d, g, w, sl, rs)
 // ---------------------------------------------------------------------------
 // Emitting a single source note through the whole chain
 // ---------------------------------------------------------------------------
-function gm_emit(si, ni, tsmp)
+function md_emit(si, ni, tsmp)
   local(sp, vi, vp, np, pitch, vel, dur, g, env, chan, rate, ln, win)
 (
   sp = STREAMS + si * S_STRIDE;
@@ -166,9 +166,9 @@ function gm_emit(si, ni, tsmp)
 
   pitch = np[2] + p_transp + vp[V_TRANSP] + sp[S_TRANSP];
   (pitch >= 0 && pitch <= 127) ? (
-    g = gm_filt_gain(pitch, vp[V_KEY]);
+    g = md_filt_gain(pitch, vp[V_KEY]);
     g >= p_fthresh * 0.01 ? (
-      env = gm_env_at(vp, tsmp);
+      env = md_env_at(vp, tsmp);
       env = (1 - p_envamt * 0.01) + p_envamt * 0.01 * env;
 
       vel = p_velmode == 0 ? np[3] :
@@ -178,19 +178,19 @@ function gm_emit(si, ni, tsmp)
 
       // grains get a soft window so the cloud breathes instead of clicking in
       sp[S_GRAIN] ? (
-        win = 0.3 + 0.7 * sin(gm_clamp(gm_emit_frac, 0, 1) * $pi);
+        win = 0.3 + 0.7 * sin(md_clamp(md_emit_frac, 0, 1) * $pi);
         vel = vel * win;
       );
 
-      p_humv > 0 ? vel += gm_rnd_bi(vp + V_RNG) * p_humv;
-      vel = gm_clamp(vel | 0, 0, 127);
+      p_humv > 0 ? vel += md_rnd_bi(vp + V_RNG) * p_humv;
+      vel = md_clamp(vel | 0, 0, 127);
       vel > 0 ? (
-        rate = max(sp[S_RATE], 1.0e-12);
+        rate = max(sp[S_RATE], 0.000000000001);
         ln   = np[1] * p_gate * 0.01;
         dur  = ln / rate;
         chan = p_outchan == 0 ? np[4] : (p_outchan - 1);
-        p_humt > 0 ? tsmp += gm_rndm(vp + V_RNG) * p_humt * 0.001 * srate;
-        gm_note_on(chan, pitch | 0, vel, tsmp, dur, vi);
+        p_humt > 0 ? tsmp += md_rndm(vp + V_RNG) * p_humt * 0.001 * srate;
+        md_note_on(chan, pitch | 0, vel, tsmp, dur, vi);
       );
     );
   );
@@ -204,11 +204,11 @@ function gm_emit(si, ni, tsmp)
 // a reversed phrase keeps its note lengths and plays last-note-first.  Both
 // directions therefore use exactly the same monotonically increasing scan.
 // ---------------------------------------------------------------------------
-function gm_stream_setup(si, vi, startPos, regA, regB, loopA, loopB, loopen, dir, rate, loopmode, isgrain)
+function md_stream_setup(si, vi, startPos, regA, regB, loopA, loopB, loopen, dir, rate, loopmode, isgrain)
   local(sp, SL, a, b, p)
 (
   sp = STREAMS + si * S_STRIDE;
-  SL = gm_src_len;
+  SL = md_src_len;
   dir >= 0 ? (
     p = startPos;
     a = loopen ? loopA : regA;
@@ -218,7 +218,7 @@ function gm_stream_setup(si, vi, startPos, regA, regB, loopA, loopB, loopen, dir
     a = SL - (loopen ? loopB : regB);
     b = SL - (loopen ? loopA : regA);
   );
-  b - a < 1.0e-4 ? b = a + 1.0e-4;
+  b - a < 0.0001 ? b = a + 0.0001;
   p > b ? p = a;
 
   sp[S_ACTIVE]   = 1;
@@ -235,16 +235,16 @@ function gm_stream_setup(si, vi, startPos, regA, regB, loopA, loopB, loopen, dir
   sp[S_LOOPEN]   = loopen;
   sp[S_LOOPMODE] = loopmode;
   sp[S_GRAIN]    = isgrain;
-  sp[S_EVI]      = gm_find_ev(dir >= 0 ? ORD_FWD : ORD_REV, dir >= 0 ? KEY_FWD : KEY_REV, gm_src_n, p);
+  sp[S_EVI]      = md_find_ev(dir >= 0 ? ORD_FWD : ORD_REV, dir >= 0 ? KEY_FWD : KEY_REV, md_src_n, p);
 );
 
-function gm_stream_end(si) local(sp, SL, na, nb)
+function md_stream_end(si) local(sp, SL, na, nb)
 (
   sp = STREAMS + si * S_STRIDE;
   sp[S_LOOPS] += 1;
   (sp[S_LOOPEN] && (p_loopcnt == 0 || sp[S_LOOPS] < p_loopcnt)) ? (
     sp[S_LOOPMODE] == 2 ? (
-      SL = gm_src_len;
+      SL = md_src_len;
       na = SL - sp[S_SEGB];
       nb = SL - sp[S_SEGA];
       sp[S_SEGA] = na;
@@ -254,15 +254,15 @@ function gm_stream_end(si) local(sp, SL, na, nb)
     ) : (
       sp[S_POS] = sp[S_SEGA];
     );
-    sp[S_EVI] = gm_find_ev(sp[S_DIR] > 0 ? ORD_FWD : ORD_REV,
+    sp[S_EVI] = md_find_ev(sp[S_DIR] > 0 ? ORD_FWD : ORD_REV,
                            sp[S_DIR] > 0 ? KEY_FWD : KEY_REV,
-                           gm_src_n, sp[S_POS]);
+                           md_src_n, sp[S_POS]);
   ) : (
     sp[S_ACTIVE] = 0;
   );
 );
 
-function gm_stream_render(si, basesmp, nsmp)
+function md_stream_render(si, basesmp, nsmp)
   local(sp, pos, newpos, rate, chunk, remain, curoff, tolimit, i, n, ord, keyb, evk, guard, span)
 (
   sp = STREAMS + si * S_STRIDE;
@@ -270,23 +270,23 @@ function gm_stream_render(si, basesmp, nsmp)
     remain = nsmp;
     curoff = 0;
     guard  = 0;
-    n      = gm_src_n;
-    while (remain > 1.0e-9 && sp[S_ACTIVE] && (guard += 1) < 512) (
+    n      = md_src_n;
+    while (remain > 0.000000001 && sp[S_ACTIVE] && (guard += 1) < 512) (
       sp[S_DIR] > 0 ? ( ord = ORD_FWD; keyb = KEY_FWD; ) : ( ord = ORD_REV; keyb = KEY_REV; );
       pos     = sp[S_POS];
       rate    = sp[S_RATE];
-      tolimit = rate > 1.0e-12 ? (sp[S_SEGB] - pos) / rate : 1.0e18;
+      tolimit = rate > 0.000000000001 ? (sp[S_SEGB] - pos) / rate : 1000000000;
       tolimit < 0 ? tolimit = 0;
       chunk   = min(remain, tolimit);
       newpos  = pos + rate * chunk;
-      span    = max(sp[S_SEGB] - sp[S_SEGA], 1.0e-9);
+      span    = max(sp[S_SEGB] - sp[S_SEGA], 0.000000001);
 
       i = sp[S_EVI];
       while (i < n && keyb[ord[i]] < newpos) (
         evk = keyb[ord[i]];
         evk >= pos ? (
-          gm_emit_frac = (evk - sp[S_SEGA]) / span;
-          gm_emit(si, ord[i], basesmp + curoff + (evk - pos) / max(rate, 1.0e-12));
+          md_emit_frac = (evk - sp[S_SEGA]) / span;
+          md_emit(si, ord[i], basesmp + curoff + (evk - pos) / max(rate, 0.000000000001));
         );
         i += 1;
       );
@@ -295,7 +295,7 @@ function gm_stream_render(si, basesmp, nsmp)
       curoff   += chunk;
       remain   -= chunk;
 
-      newpos >= sp[S_SEGB] - 1.0e-9 ? gm_stream_end(si);
+      newpos >= sp[S_SEGB] - 0.000000001 ? md_stream_end(si);
       (sp[S_ENDSMP] > 0 && basesmp + curoff >= sp[S_ENDSMP]) ? sp[S_ACTIVE] = 0;
     );
   );
@@ -304,7 +304,7 @@ function gm_stream_render(si, basesmp, nsmp)
 // ---------------------------------------------------------------------------
 // Grains
 // ---------------------------------------------------------------------------
-function gm_grain_free(vi) local(vp, i, g)
+function md_grain_free(vi) local(vp, i, g)
 (
   vp = VOICES + vi * V_STRIDE;
   i = 0;
@@ -318,9 +318,9 @@ function gm_grain_free(vi) local(vp, i, g)
 );
 
 // Reserve a contiguous run of grain slots; shrinks the request if the pool is busy.
-function gm_grain_reserve(vi, want) local(i, run, start, got)
+function md_grain_reserve(vi, want) local(i, run, start, got)
 (
-  want = gm_clamp(want | 0, 1, MAX_GRAINS);
+  want = md_clamp(want | 0, 1, MAX_GRAINS);
   got  = 0;
   while (want >= 1 && got == 0) (
     i = 0; run = 0; start = 0;
@@ -348,7 +348,7 @@ function gm_grain_reserve(vi, want) local(i, run, start, got)
   got;
 );
 
-function gm_grain_spawn(vi, g, tsmp)
+function md_grain_spawn(vi, g, tsmp)
   local(vp, sp, gp, si, a, b, L, pos, size, dir, life, ctr, pit, endp)
 (
   vp = VOICES + vi * V_STRIDE;
@@ -357,40 +357,40 @@ function gm_grain_spawn(vi, g, tsmp)
 
   a = vp[V_SEGA];
   b = vp[V_SEGB];
-  L = max(b - a, 1.0e-4);
-  size = gm_clamp(p_gsize, 0.005, L);
+  L = max(b - a, 0.0001);
+  size = md_clamp(p_gsize, 0.005, L);
 
   // motion drifts the cloud across the region as project time passes
-  ctr = p_gmotion * (tsmp - vp[V_STARTSMP]) * gm_bps;
+  ctr = p_gmotion * (tsmp - vp[V_STARTSMP]) * md_bps;
 
   p_gshape == 0 ? pos = a + ((g - vp[V_GBASE]) / max(vp[V_NGRAIN], 1)) * L + ctr :
-  p_gshape == 1 ? pos = a + gm_rndm(vp + V_RNG) * L + ctr :
-                  pos = a + L * 0.5 + ctr + gm_rnd_bi(vp + V_RNG) * L * 0.25;
-  p_gspray > 0 ? pos += gm_rnd_bi(vp + V_RNG) * p_gspray * 0.01 * L;
+  p_gshape == 1 ? pos = a + md_rndm(vp + V_RNG) * L + ctr :
+                  pos = a + L * 0.5 + ctr + md_rnd_bi(vp + V_RNG) * L * 0.25;
+  p_gspray > 0 ? pos += md_rnd_bi(vp + V_RNG) * p_gspray * 0.01 * L;
 
   // EEL2's % is integer-only, so wrap by hand
   pos = pos - floor((pos - a) / L) * L;
   endp = min(pos + size, b);
-  endp - pos < 1.0e-4 ? ( pos = a; endp = min(a + size, b); );
+  endp - pos < 0.0001 ? ( pos = a; endp = min(a + size, b); );
 
   p_gdir == 0 ? dir = 1 :
   p_gdir == 1 ? dir = -1 :
   p_gdir == 2 ? ( gp[G_ALT] = 1 - gp[G_ALT]; dir = gp[G_ALT] > 0 ? 1 : -1; ) :
-                ( dir = gm_rndm(vp + V_RNG) < 0.5 ? -1 : 1 );
+                ( dir = md_rndm(vp + V_RNG) < 0.5 ? -1 : 1 );
 
-  pit = p_gpitch > 0 ? floor(gm_rnd_bi(vp + V_RNG) * p_gpitch + 0.5) : 0;
+  pit = p_gpitch > 0 ? floor(md_rnd_bi(vp + V_RNG) * p_gpitch + 0.5) : 0;
 
-  gm_stream_setup(si, vi, dir >= 0 ? pos : endp, pos, endp, 0, 0, 0, dir, vp[V_RATE], 0, 1);
+  md_stream_setup(si, vi, dir >= 0 ? pos : endp, pos, endp, 0, 0, 0, dir, vp[V_RATE], 0, 1);
   sp = STREAMS + si * S_STRIDE;
   sp[S_TRANSP] = pit;
 
-  life = (endp - pos) / max(vp[V_RATE], 1.0e-12);
+  life = (endp - pos) / max(vp[V_RATE], 0.000000000001);
   sp[S_ENDSMP] = tsmp + life + 1;
   gp[G_BIRTH]  = tsmp;
-  gp[G_LIFE]   = max(life * 100 / gm_clamp(p_gdens, 1, 100), 16);
+  gp[G_LIFE]   = max(life * 100 / md_clamp(p_gdens, 1, 100), 16);
 );
 
-function gm_gran_render(vi, basesmp, nsmp) local(vp, i, g, si, sp, gp, cyc, st)
+function md_gran_render(vi, basesmp, nsmp) local(vp, i, g, si, sp, gp, cyc, st)
 (
   vp = VOICES + vi * V_STRIDE;
   i = 0;
@@ -400,15 +400,15 @@ function gm_gran_render(vi, basesmp, nsmp) local(vp, i, g, si, sp, gp, cyc, st)
     sp = STREAMS + si * S_STRIDE;
     gp = GRAINS  + g  * G_STRIDE;
 
-    sp[S_ACTIVE] ? gm_stream_render(si, basesmp, nsmp);
+    sp[S_ACTIVE] ? md_stream_render(si, basesmp, nsmp);
 
     // grains keep respawning through the release stage; the envelope fades them
-    // out and gm_render_block() retires the voice once it reaches zero
+    // out and md_render_block() retires the voice once it reaches zero
     cyc = gp[G_BIRTH] + gp[G_LIFE];
     (vp[V_STATE] && !sp[S_ACTIVE] && basesmp + nsmp > cyc) ? (
       st = max(basesmp, cyc);
-      gm_grain_spawn(vi, g, st);
-      gm_stream_render(si, st, basesmp + nsmp - st);
+      md_grain_spawn(vi, g, st);
+      md_stream_render(si, st, basesmp + nsmp - st);
     );
     i += 1;
   );
@@ -417,7 +417,7 @@ function gm_gran_render(vi, basesmp, nsmp) local(vp, i, g, si, sp, gp, cyc, st)
 // ---------------------------------------------------------------------------
 // Voices
 // ---------------------------------------------------------------------------
-function gm_voice_alive(vi) local(vp, i, n, a)
+function md_voice_alive(vi) local(vp, i, n, a)
 (
   vp = VOICES + vi * V_STRIDE;
   a  = STREAMS[vi * S_STRIDE + S_ACTIVE];
@@ -425,32 +425,32 @@ function gm_voice_alive(vi) local(vp, i, n, a)
   a;
 );
 
-function gm_voice_kill(vi, tsmp) local(vp)
+function md_voice_kill(vi, tsmp) local(vp)
 (
   vp = VOICES + vi * V_STRIDE;
   vp[V_STATE] ? (
     STREAMS[vi * S_STRIDE + S_ACTIVE] = 0;
-    vp[V_NGRAIN] > 0 ? gm_grain_free(vi);
-    gm_notes_off_owner(vi, tsmp);
+    vp[V_NGRAIN] > 0 ? md_grain_free(vi);
+    md_notes_off_owner(vi, tsmp);
     vp[V_STATE]   = 0;
     vp[V_SUSHOLD] = 0;
   );
 );
 
-function gm_voice_release(vi, tsmp) local(vp)
+function md_voice_release(vi, tsmp) local(vp)
 (
   vp = VOICES + vi * V_STRIDE;
   vp[V_STATE] == 1 ? (
-    vp[V_RELLVL] = gm_env_at(vp, tsmp);
+    vp[V_RELLVL] = md_env_at(vp, tsmp);
     vp[V_STATE]  = 2;
     vp[V_RELSMP] = tsmp;
-    p_rel <= 0 ? gm_voice_kill(vi, tsmp);
+    p_rel <= 0 ? md_voice_kill(vi, tsmp);
   );
 );
 
-function gm_voice_alloc(tsmp) local(i, vp, free, oldrel, oldrela, oldest, oldesta, nact)
+function md_voice_alloc(tsmp) local(i, vp, free, oldrel, oldrela, oldest, oldesta, nact)
 (
-  free = -1; oldrel = -1; oldrela = 1.0e18; oldest = -1; oldesta = 1.0e18; nact = 0;
+  free = -1; oldrel = -1; oldrela = 1000000000; oldest = -1; oldesta = 1000000000; nact = 0;
   i = 0;
   while (i < MAX_VOICES) (
     vp = VOICES + i * V_STRIDE;
@@ -463,12 +463,12 @@ function gm_voice_alloc(tsmp) local(i, vp, free, oldrel, oldrela, oldest, oldest
   );
   (nact >= p_poly || free < 0) ? (
     i = oldrel >= 0 ? oldrel : oldest;
-    i >= 0 ? ( gm_voice_kill(i, tsmp); free = i; );
+    i >= 0 ? ( md_voice_kill(i, tsmp); free = i; );
   );
   free;
 );
 
-function gm_active_voice() local(i, r)
+function md_active_voice() local(i, r)
 (
   r = -1;
   i = 0;
@@ -477,29 +477,29 @@ function gm_active_voice() local(i, r)
 );
 
 // Warp ratio: source beats consumed per project beat.
-function gm_warp_ratio()
+function md_warp_ratio()
 (
-  p_warp == 0 ? (gm_src_tempo / 60) / max(tempo / 60, 1.0e-9) * p_speed :
+  p_warp == 0 ? (md_src_tempo / 60) / max(tempo / 60, 0.000000001) * p_speed :
   p_warp == 1 ? p_speed :
-                (gm_src_len / max(p_fixlen, 0.01)) * p_speed;
+                (md_src_len / max(p_fixlen, 0.01)) * p_speed;
 );
 
-function gm_quantize_start(tsmp) local(g, bt, tgt)
+function md_quantize_start(tsmp) local(g, bt, tgt)
 (
   g = p_tquant == 1 ? 0.25 :
       p_tquant == 2 ? 0.5  :
       p_tquant == 3 ? 1    :
       p_tquant == 4 ? 2    :
-      p_tquant == 5 ? gm_ts_num * 4 / gm_ts_den : 0;
-  (g > 0 && play_state == 1 && gm_bps > 0) ? (
-    bt  = gm_blk_beat + (tsmp - gm_blk_start) * gm_bps;
-    tgt = ceil(bt / g - 1.0e-6) * g;
-    tsmp = tsmp + (tgt - bt) / gm_bps;
+      p_tquant == 5 ? md_ts_num * 4 / md_ts_den : 0;
+  (g > 0 && play_state == 1 && md_bps > 0) ? (
+    bt  = md_blk_beat + (tsmp - md_blk_start) * md_bps;
+    tgt = ceil(bt / g - 0.000001) * g;
+    tsmp = tsmp + (tgt - bt) / md_bps;
   );
   tsmp;
 );
 
-function gm_voice_start(vi, key, vel, chan, tsmp, sl)
+function md_voice_start(vi, key, vel, chan, tsmp, sl)
   local(vp, a, b, la, lb, span, rate, dir, loopen, startp, ratio, i)
 (
   vp = VOICES + vi * V_STRIDE;
@@ -514,13 +514,13 @@ function gm_voice_start(vi, key, vel, chan, tsmp, sl)
   vp[V_MODE]     = p_mode;
   vp[V_SLICE]    = sl;
   vp[V_NGRAIN]   = 0;
-  vp[V_AGE]      = gm_agecnt;
-  gm_agecnt     += 1;
-  vp[V_RNG]      = 1 + ((p_gseed * 7919 + key * 131 + gm_agecnt * 17) % 2147483646);
-  vp[V_STARTSMP] = gm_quantize_start(tsmp);
+  vp[V_AGE]      = md_agecnt;
+  md_agecnt     += 1;
+  vp[V_RNG]      = 1 + ((p_gseed * 7919 + key * 131 + md_agecnt * 17) % 2147483646);
+  vp[V_STARTSMP] = md_quantize_start(tsmp);
 
   // --- pitch / rate mapping -------------------------------------------------
-  rate = gm_base_rate;
+  rate = md_base_rate;
   vp[V_TRANSP] = 0;
   p_mode != 2 ? (
     p_keytrack == 1 ? vp[V_TRANSP] = key - p_root :
@@ -533,17 +533,17 @@ function gm_voice_start(vi, key, vel, chan, tsmp, sl)
     a = SLICES[sl * 2];
     b = SLICES[sl * 2 + 1];
   ) : (
-    a = gm_reg_a;
-    b = gm_reg_b;
+    a = md_reg_a;
+    b = md_reg_b;
   );
-  span = max(b - a, 1.0e-4);
+  span = max(b - a, 0.0001);
   vp[V_SEGA] = a;
   vp[V_SEGB] = b;
 
   la = a + span * p_loopstart * 0.01;
   lb = la + span * p_looplen * 0.01;
   lb = min(lb, b);
-  la = min(la, lb - 1.0e-4);
+  la = min(la, lb - 0.0001);
   la < a ? la = a;
 
   loopen = (p_mode == 3) ? 0 : p_loopon;
@@ -554,18 +554,18 @@ function gm_voice_start(vi, key, vel, chan, tsmp, sl)
   // --- transport lock -------------------------------------------------------
   startp = dir >= 0 ? a : b;
   (p_startmode == 1 && play_state == 1 && p_mode != 2) ? (
-    ratio  = gm_ratio;
-    startp = gm_blk_beat + (vp[V_STARTSMP] - gm_blk_start) * gm_bps;
+    ratio  = md_ratio;
+    startp = md_blk_beat + (vp[V_STARTSMP] - md_blk_start) * md_bps;
     startp = startp * ratio;
     startp = a + (startp - floor(startp / span) * span);
     startp > b ? startp = a;
   );
 
   p_mode == 3 ? (
-    gm_grain_reserve(vi, p_gcount) ? (
+    md_grain_reserve(vi, p_gcount) ? (
       // "Even" spawns the whole cloud at once (the region is split in parallel);
       // the random shapes stagger the first cycle so the cloud fades in.
-      la = p_gshape == 0 ? 0 : gm_clamp(p_gsize, 0.005, span) / max(rate, 1.0e-12);
+      la = p_gshape == 0 ? 0 : md_clamp(p_gsize, 0.005, span) / max(rate, 0.000000000001);
       i = 0;
       while (i < vp[V_NGRAIN]) (
         GRAINS[(vp[V_GBASE] + i) * G_STRIDE + G_BIRTH] = vp[V_STARTSMP] - 1;
@@ -575,20 +575,20 @@ function gm_voice_start(vi, key, vel, chan, tsmp, sl)
       );
     ) : ( vp[V_STATE] = 0 );
   ) : (
-    gm_stream_setup(vi, vi, startp, a, b, la, lb, loopen, dir, rate, p_loopmode, 0);
+    md_stream_setup(vi, vi, startp, a, b, la, lb, loopen, dir, rate, p_loopmode, 0);
   );
 );
 
-function gm_trigger(key, vel, chan, tsmp) local(vi, sl, av, vp)
+function md_trigger(key, vel, chan, tsmp) local(vi, sl, av, vp)
 (
-  gm_src_n > 0 ? (
+  md_src_n > 0 ? (
     sl = -1;
     p_mode == 2 ? (
       sl = key - p_slroot;
-      (sl < 0 || sl >= gm_nslices) ? sl = -2;
+      (sl < 0 || sl >= md_nslices) ? sl = -2;
     );
     sl != -2 ? (
-      av = gm_active_voice();
+      av = md_active_voice();
       (p_mode == 1 && av >= 0 && p_osretrig == 1) ? (
         0;                                   // ignore retriggers while playing
       ) : (
@@ -599,23 +599,23 @@ function gm_trigger(key, vel, chan, tsmp) local(vi, sl, av, vp)
           vp[V_VEL] = vel;
           p_keytrack == 1 ? vp[V_TRANSP] = key - p_root;
           p_keytrack == 2 ? (
-            vp[V_RATE] = gm_base_rate * pow(2, (key - p_root) / 12);
+            vp[V_RATE] = md_base_rate * pow(2, (key - p_root) / 12);
             STREAMS[av * S_STRIDE + S_RATE] = vp[V_RATE];
           );
         ) : (
           (p_mode == 1 || p_choke) ? (
             vi = 0;
-            while (vi < MAX_VOICES) ( VOICES[vi * V_STRIDE + V_STATE] ? gm_voice_kill(vi, tsmp); vi += 1; );
+            while (vi < MAX_VOICES) ( VOICES[vi * V_STRIDE + V_STATE] ? md_voice_kill(vi, tsmp); vi += 1; );
           );
-          vi = gm_voice_alloc(tsmp);
-          vi >= 0 ? gm_voice_start(vi, key, vel, chan, tsmp, sl);
+          vi = md_voice_alloc(tsmp);
+          vi >= 0 ? md_voice_start(vi, key, vel, chan, tsmp, sl);
         );
       );
     );
   );
 );
 
-function gm_note_off(key, chan, tsmp) local(i, vp, hold)
+function md_note_off(key, chan, tsmp) local(i, vp, hold)
 (
   // one-shot always plays to the end; slice mode can be told to do the same
   hold = (p_mode == 1) || (p_mode == 2 && p_slgate == 0);
@@ -624,59 +624,59 @@ function gm_note_off(key, chan, tsmp) local(i, vp, hold)
     while (i < MAX_VOICES) (
       vp = VOICES + i * V_STRIDE;
       (vp[V_STATE] == 1 && vp[V_KEY] == key && vp[V_CHAN] == chan) ? (
-        gm_sustain ? vp[V_SUSHOLD] = 1 : gm_voice_release(i, tsmp);
+        md_sustain ? vp[V_SUSHOLD] = 1 : md_voice_release(i, tsmp);
       );
       i += 1;
     );
   );
 );
 
-function gm_sustain_off(tsmp) local(i, vp)
+function md_sustain_off(tsmp) local(i, vp)
 (
   i = 0;
   while (i < MAX_VOICES) (
     vp = VOICES + i * V_STRIDE;
-    (vp[V_STATE] == 1 && vp[V_SUSHOLD]) ? ( vp[V_SUSHOLD] = 0; gm_voice_release(i, tsmp); );
+    (vp[V_STATE] == 1 && vp[V_SUSHOLD]) ? ( vp[V_SUSHOLD] = 0; md_voice_release(i, tsmp); );
     i += 1;
   );
 );
 
-function gm_panic(off) local(i)
+function md_panic(off) local(i)
 (
   i = 0;
   while (i < MAX_VOICES) (
-    VOICES[i * V_STRIDE + V_STATE] ? gm_voice_kill(i, gm_blk_start + off);
+    VOICES[i * V_STRIDE + V_STATE] ? md_voice_kill(i, md_blk_start + off);
     i += 1;
   );
-  gm_all_notes_off(off);
-  gm_sustain = 0;
+  md_all_notes_off(off);
+  md_sustain = 0;
 );
 
 // ---------------------------------------------------------------------------
 // Per-block rendering
 // ---------------------------------------------------------------------------
-function gm_render_block() local(i, vp, st, n, e)
+function md_render_block() local(i, vp, st, n, e)
 (
-  e = gm_blk_start + gm_blk_len;
+  e = md_blk_start + md_blk_len;
   i = 0;
   while (i < MAX_VOICES) (
     vp = VOICES + i * V_STRIDE;
     vp[V_STATE] ? (
-      st = max(gm_blk_start, vp[V_STARTSMP]);
+      st = max(md_blk_start, vp[V_STARTSMP]);
       n  = e - st;
       n > 0 ? (
-        vp[V_NGRAIN] > 0 ? gm_gran_render(i, st, n) : gm_stream_render(i, st, n);
+        vp[V_NGRAIN] > 0 ? md_gran_render(i, st, n) : md_stream_render(i, st, n);
       );
 
-      (vp[V_STATE] == 2 && gm_env_at(vp, e) <= 0.0001) ? gm_voice_kill(i, e);
+      (vp[V_STATE] == 2 && md_env_at(vp, e) <= 0.0001) ? md_voice_kill(i, e);
 
-      (vp[V_STATE] && gm_voice_alive(i) == 0 && gm_owner_notes(i) == 0) ? gm_voice_kill(i, e);
+      (vp[V_STATE] && md_voice_alive(i) == 0 && md_owner_notes(i) == 0) ? md_voice_kill(i, e);
 
       // a held voice whose envelope has decayed all the way to zero is done
       (vp[V_STATE] == 1 && p_sus <= 0 && p_envamt >= 100 &&
-       gm_env_at(vp, e) <= 0.0001 && gm_owner_notes(i) == 0) ? gm_voice_kill(i, e);
+       md_env_at(vp, e) <= 0.0001 && md_owner_notes(i) == 0) ? md_voice_kill(i, e);
     );
     i += 1;
   );
-  gm_flush_offs();
+  md_flush_offs();
 );

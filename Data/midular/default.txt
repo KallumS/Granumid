@@ -1,6 +1,6 @@
-# Granumid MIDI source - built-in demo phrase
+# Midular MIDI source - built-in demo phrase
 # 2 bars of 4/4 at 120 BPM: bass, chord stabs and a 16th-note melody.
-# Replace this by importing your own with Scripts/granumid_import.lua.
+# Replace this by importing your own with Scripts/midular_import.lua.
 #
 # header: magic version lengthBeats noteCount tempo tsNum tsDen markerCount + 4 reserved
 7473

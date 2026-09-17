@@ -1,16 +1,16 @@
-# Granumid source format (`.txt`)
+# Midular source format (`.txt`)
 
 ## Why a text file
 
 JSFX has no Standard MIDI File reader. What it *does* have is a documented text
-mode: a file-slider (`slider1:/granumid:default.txt:Source File`) browses
+mode: a file-slider (`slider1:/midular:default.txt:Source File`) browses
 `<REAPER resource path>/Data/<dir>` for `.wav`, `.txt`, `.ogg` and `.raw` files,
 and a `.txt` opened with `file_open()` is tokenised into numbers separated by
 commas or newlines, with `#` and `;` starting comments. `file_var()` then reads
 one number at a time.
 
-So a Granumid source is just a list of numbers. It stays readable, diffable and
-hand-editable, and `granumid_import.lua` writes it from either a MIDI item or a
+So a Midular source is just a list of numbers. It stays readable, diffable and
+hand-editable, and `midular_import.lua` writes it from either a MIDI item or a
 `.mid` file on disk.
 
 ## Layout
@@ -42,7 +42,7 @@ Whitespace, newlines and commas are all equivalent separators. Comments run from
 | `velocity` | 1–127 |
 | `channel` | 0–15 |
 
-Notes do not have to be sorted; Granumid builds its own forward and reverse
+Notes do not have to be sorted; Midular builds its own forward and reverse
 orderings when the file is loaded.
 
 ### Markers — 1 record each
@@ -55,7 +55,7 @@ file's own markers once edited.
 ## Example
 
 ```
-# Granumid MIDI source
+# Midular MIDI source
 7473            # magic
 1               # version
 4.000000        # length in beats
